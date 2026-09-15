@@ -1,11 +1,25 @@
 """Compare the transcribed .ode against the original gotran C++, elementwise."""
-import re, subprocess, sys
+import re, subprocess, sys, types
+from pathlib import Path
 import numpy as np
 
-sys.path.insert(0, "/tmp/claude-0/-home-shared/b50163d5-5b8e-4455-8724-1cc01a2e4380/scratchpad")
-import bmIM
+import gotranx
+import gotranx.cli.gotran2py
 
-HDR = "/home/shared/references/SKNM_code/base_model_IM.h"
+ROOT = Path(__file__).resolve().parents[1]
+BUILD = Path("/tmp/sknm-tools-build")
+BUILD.mkdir(parents=True, exist_ok=True)
+
+# Generate the Python from the .ode with the installed gotranx (singularity guards on, the default).
+bmIM = types.ModuleType("bmIM")
+exec(gotranx.cli.gotran2py.get_code(gotranx.load_ode(ROOT / "base_model_IM.ode")), bmIM.__dict__)
+
+DRIVER = BUILD / "rhs_driver"
+if not DRIVER.exists():
+    subprocess.run(["g++", "-O2", "-I", str(ROOT / "references" / "SKNM_code"),
+                    str(ROOT / "tools" / "rhs_driver.cpp"), "-o", str(DRIVER)], check=True)
+
+HDR = ROOT / "references" / "SKNM_code" / "base_model_IM.h"
 src = open(HDR).read()
 
 # --- name order as the C uses it -------------------------------------------
@@ -56,7 +70,7 @@ for s, p, t in cases:
     inp.append(" ".join("%.17g" % x for x in p))
     inp.append("%.17g" % t)
 out = subprocess.run(
-    ["/tmp/claude-0/-home-shared/b50163d5-5b8e-4455-8724-1cc01a2e4380/scratchpad/driver"],
+    [str(DRIVER)],
     input="\n".join(inp), capture_output=True, text=True, check=True,
 ).stdout.strip().split("\n")
 c_res = np.array([[float(x) for x in line.split()] for line in out])  # (N,25) C order
