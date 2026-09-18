@@ -1,22 +1,24 @@
-"""Compare the transcribed .ode against the original gotran C++, elementwise."""
+"""Compare the committed membrane code against the original gotran C++, elementwise.
+
+This validates **what ships**, not what gotranx currently emits: it imports
+`sknm.membrane.base_model_IM` rather than regenerating in memory, so a stale or hand-edited
+committed file is caught. Regenerate with `python3 tools/generate_membrane_models.py`.
+
+Run directly for the full report, or via `pytest -m reference` for a pass/fail check.
+"""
 
 import re
 import subprocess
 import sys
-import types
 from pathlib import Path
 
-import gotranx
-import gotranx.cli.gotran2py
 import numpy as np
+
+from sknm.membrane import base_model_IM as bmIM
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = Path("/tmp/sknm-tools-build")
 BUILD.mkdir(parents=True, exist_ok=True)
-
-# Generate the Python from the .ode with the installed gotranx (singularity guards on, the default).
-bmIM = types.ModuleType("bmIM")
-exec(gotranx.cli.gotran2py.get_code(gotranx.load_ode(ROOT / "base_model_IM.ode")), bmIM.__dict__)
 
 DRIVER = BUILD / "rhs_driver"
 if not DRIVER.exists():

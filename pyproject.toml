@@ -67,9 +67,21 @@ disallow_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 
+[[tool.mypy.overrides]]
+# gotranx emits unannotated defs, and this file is generated rather than hand-edited. Only
+# that one rule is relaxed; check_untyped_defs keeps the bodies type-checked.
+module = "sknm.membrane.base_model_IM"
+disallow_untyped_defs = false
+check_untyped_defs = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers --strict-config --import-mode=importlib"
+markers = [
+    # Needs the reference C++ in references/SKNM_code and a C++ compiler, neither of which is
+    # present in a fresh clone, so these tests skip rather than fail.
+    "reference: compares against the authors' C++ reference; skipped unless it is available",
+]
 
 [tool.coverage.run]
 source = ["sknm"]
