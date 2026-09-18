@@ -1,6 +1,15 @@
-references
+# --- sknm: working material, deliberately not part of the shipped package ---
+# See .scratch/sknm-library/issues/05-packaging-and-tooling.md for the rationale.
+# paper PDFs, the authors' CC-BY C++, 47 MB of visualization-only meshes
+references/
+# nested checkouts (gotranx, editable-installed for the codegen extra)
+third-party/
+# wayfinder map, decision tickets, fact records
+.scratch/
+# includes docs/adr/
+docs/
 
-# Created by https://www.toptal.com/developers/gitignore/api/python,c,c++
+# --- Created by https://www.toptal.com/developers/gitignore/api/python,c,c++ ---
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,c,c++
 
 ### C ###
