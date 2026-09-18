@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+title: sknm
+message: >-
+  This package is an independent Python reimplementation. If you use it, please cite the
+  paper that describes the model, listed under `references` below.
+type: software
+authors:
+  - given-names: Henrik
+    family-names: Finsberg
+    email: henriknf@simula.no
+    affiliation: Simula Research Laboratory
+license: MIT
+references:
+  - type: article
+    title: >-
+      The simplified Kirchhoff network model (SKNM): a cell-based reaction–diffusion model of
+      excitable tissue
+    authors:
+      - given-names: Karoline Horgmo
+        family-names: Jæger
+      - given-names: Aslak
+        family-names: Tveito
+    journal: Scientific Reports
+    volume: 13
+    number: 16434
+    year: 2023
+    doi: 10.1038/s41598-023-43444-9

@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev]"
+      # Single source of truth for formatting and typing: whatever runs locally.
+      - run: pre-commit run --all-files
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e ".[test]"
+      # Coverage is reported, not gated.
+      - run: pytest --cov=sknm --cov-report=term-missing
+
+  examples:
+    runs-on: ubuntu-latest
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[examples]"
+      # Fast mode only (~2 min each); `--full` is for paper-exact runs, never CI.
+      - name: Run example scripts
+        run: |
+          shopt -s nullglob
+          for script in examples/*.py; do
+            echo "::group::${script}"
+            python "${script}"
+            echo "::endgroup::"
+          done
