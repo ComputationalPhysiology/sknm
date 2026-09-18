@@ -5,7 +5,9 @@ transform (IfExp->Conditional, Compare->Lt/Le/.., BoolOp->And/Or, pow->**)
 -> ast.unparse.  Python's own parser handles precedence, so we never have to
 reason about it by hand.
 """
-import ast, re, sys
+
+import ast
+import re
 from collections import OrderedDict
 
 SRC = "/home/shared/references/SKNM_code/base_model_IM.h"
@@ -30,8 +32,7 @@ state_by_idx = {i: n for n, (i, _) in states_init.items()}
 
 # ------------------------------------------------------------------ rhs body
 rhs_body = src.split(
-    "void rhs(const double* states, const double t, const double* parameters,\n"
-    "  double* values)\n{"
+    "void rhs(const double* states, const double t, const double* parameters,\n  double* values)\n{"
 )[1].split("\n}")[0]
 
 # Drop the "Assign states"/"Assign parameters" preamble.
@@ -224,6 +225,7 @@ for p in params_init:
     param_component[p] = used_in.get(p, "Misc")
 
 unused = [p for p in params_init if p not in used_in]
+
 
 # ------------------------------------------------------------------- emit
 def block(kind, comp, entries):

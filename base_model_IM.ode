@@ -357,4 +357,3 @@ expressions("Membrane potential")
 i_Stim = Conditional(Lt(V_m, -40.0), 1.0, 0.0) * Conditional(And(Le(time - stim_period * floor(time / stim_period), stim_duration + stim_start), Ge(time - stim_period * floor(time / stim_period), stim_start)), -stim_amplitude, 0.0)
 I_tot = I_CaL + I_K1 + I_Kr + I_Ks + I_Na + I_NaCa + I_NaK + I_NaL + I_bCa + I_bCl + I_f + I_pCa + I_to
 dV_m_dt = -I_tot - i_Stim
-
