@@ -6,6 +6,7 @@ comparisons can be reproduced. See ``CONTEXT.md`` for the domain vocabulary.
 """
 
 from sknm import units
+from sknm.assembly import Operator, Variant, assemble
 from sknm.membrane import MembraneModel, from_gotranx
 from sknm.network import CellNetwork, Connection, chain, from_edges, sheet
 
@@ -15,7 +16,10 @@ __all__ = [
     "CellNetwork",
     "Connection",
     "MembraneModel",
+    "Operator",
+    "Variant",
     "__version__",
+    "assemble",
     "chain",
     "from_edges",
     "from_gotranx",
