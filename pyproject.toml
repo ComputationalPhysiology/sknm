@@ -28,11 +28,11 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Typing :: Typed",
 ]
-# scipy >= 1.11 for `diags_array`, which the Laplacian assembly uses; the sparse *array*
-# classes it works with arrived earlier, but that function did not.
+# scipy >= 1.12 for the iterative solvers' `rtol`, which replaced the `tol` they took before.
+# That is also past 1.11, which is where `diags_array` arrived for the Laplacian assembly.
 # pint >= 0.23 for numpy 2 support. Units are required on every dimensional argument, so pint
 # is imported by `sknm.units` and is not optional.
-dependencies = ["numpy", "scipy>=1.11", "pint>=0.23"]
+dependencies = ["numpy", "scipy>=1.12", "pint>=0.23"]
 
 [project.urls]
 Homepage = "https://github.com/ComputationalPhysiology/sknm"
