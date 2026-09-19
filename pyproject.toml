@@ -30,7 +30,9 @@ classifiers = [
 ]
 # scipy >= 1.11 for `diags_array`, which the Laplacian assembly uses; the sparse *array*
 # classes it works with arrived earlier, but that function did not.
-dependencies = ["numpy", "scipy>=1.11"]
+# pint >= 0.23 for numpy 2 support. Units are required on every dimensional argument, so pint
+# is imported by `sknm.units` and is not optional.
+dependencies = ["numpy", "scipy>=1.11", "pint>=0.23"]
 
 [project.urls]
 Homepage = "https://github.com/ComputationalPhysiology/sknm"
@@ -72,6 +74,15 @@ files = ["src/sknm"]
 disallow_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+# pint 0.26.1 segfaults mypy 2.3.1 on `import pint`; 0.25.3 does not. Since CI installs
+# whatever pip resolves, the version cannot be relied on. Skipping pint's stubs costs no
+# checking: mypy resolves a Quantity to `Any` with or without them, because pint expresses
+# units through runtime magic that the type system cannot follow.
+module = "pint.*"
+follow_imports = "skip"
+follow_imports_for_stubs = true
 
 [[tool.mypy.overrides]]
 # gotranx emits unannotated defs, and this file is generated rather than hand-edited. Only

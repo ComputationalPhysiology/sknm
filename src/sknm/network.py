@@ -9,6 +9,11 @@ Both conductances of a connection mix the volume fractions of *both* of its endp
 neither can be computed by a `Connection` on its own; that arithmetic lives here, on the
 network, and the connection carries only what is local to it.
 
+**Every dimensional argument must carry a unit**: ``16 * um``, never ``16``. See `sknm.units`.
+Units are stripped once, in the constructors, and the stored attributes are bare floats in the
+base unit for their dimension -- centimetres, square centimetres, millisiemens. Nothing past
+this module carries a unit.
+
 Networks are immutable. `frozen=True` stops attributes being rebound but not arrays being
 written into, so every array is stamped read-only on construction and the arrays passed in are
 copied rather than adopted. Derived quantities are cached, which is only sound because nothing
@@ -18,24 +23,39 @@ can change underneath them; to change a conductance, build a new network with
 
 from __future__ import annotations
 
-import dataclasses
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from functools import cached_property
-from typing import Literal, get_args
+from typing import Any, Literal, get_args
 
 import numpy as np
 import numpy.typing as npt
 import scipy.sparse as sp
 from scipy.sparse.csgraph import connected_components
 
-from sknm.units import mm
+from sknm import units
 
-# Largest cell dimension accepted by the constructors. Cells are tens of micrometres across,
-# so anything approaching a millimetre is a dropped unit conversion -- 16 rather than 16 * um.
-MAX_CELL_SIZE = 1.0 * mm
+#: Largest cell dimension the constructors accept. Cells are tens of micrometres across, so a
+#: dimension approaching a millimetre is a mistake -- now necessarily a stated one, since the
+#: unit has to be written out, but a network built on it still describes nothing biological.
+MAX_CELL_SIZE = 1.0 * units.mm
+
+_MAX_LENGTH: float = float(units.in_base_units(MAX_CELL_SIZE, "length", name="MAX_CELL_SIZE"))
+_MAX_AREA: float = _MAX_LENGTH**2
 
 LaplacianKind = Literal["intra", "intra_extra"]
+
+# Which dimension each field of `CellNetwork` is measured in. Drives both the unit stripping in
+# `__post_init__` and the re-attaching in `_as_quantities`, so the two cannot drift apart.
+_FIELD_DIMENSIONS: dict[str, str] = {
+    "membrane_area": "area",
+    "length": "length",
+    "cross_section": "area",
+    "Gg": "conductance",
+    "sigma_i": "conductivity",
+    "sigma_e": "conductivity",
+    "Cm": "specific_capacitance",
+}
 
 
 @dataclass(frozen=True, eq=False)
@@ -49,16 +69,30 @@ class Connection:
     ----------
     cells : tuple of int
         Indices of the two connected cells.
+    length : pint.Quantity
+        Distance between the two cell centres, as a length, for example ``16 * um``.
+    cross_section : pint.Quantity
+        Area of the interface between the two cells, for example ``16 * um * 19.2 * um``.
+    Gg : pint.Quantity
+        Gap junction conductance, for example ``0.2 * uS``. Zero conductance means the gap
+        junctions are shut, which blocks intracellular current without disconnecting the cells
+        extracellularly.
+
+    Attributes
+    ----------
     length : float
-        Distance between the two cell centres, in cm.
+        `length` in cm, with the unit stripped.
     cross_section : float
-        Area of the interface between the two cells, in cm^2.
+        `cross_section` in cm^2.
     Gg : float
-        Gap junction conductance, in mS. Zero means the gap junctions are shut, which blocks
-        intracellular current without disconnecting the cells extracellularly.
+        `Gg` in mS.
 
     Raises
     ------
+    TypeError
+        If `length`, `cross_section` or `Gg` is a bare number rather than a quantity.
+    pint.DimensionalityError
+        If one of them measures the wrong thing.
     ValueError
         If the two cell indices are equal or negative, or if `length` or `cross_section` is
         not positive, or if `Gg` is negative.
@@ -70,17 +104,25 @@ class Connection:
     Gg: float
 
     def __post_init__(self) -> None:
+        for name, dimension in [
+            ("length", "length"),
+            ("cross_section", "area"),
+            ("Gg", "conductance"),
+        ]:
+            magnitude = units.in_base_units(getattr(self, name), dimension, name=name)
+            object.__setattr__(self, name, float(magnitude))
+
         first, second = self.cells
         if first == second:
             raise ValueError(f"a cell cannot connect to itself, but cell {first} does")
         if first < 0 or second < 0:
             raise ValueError(f"cell index must be non-negative, got {self.cells}")
         if self.length <= 0:
-            raise ValueError(f"length must be positive, got {self.length}")
+            raise ValueError(f"length must be positive, got {self.length} cm")
         if self.cross_section <= 0:
-            raise ValueError(f"cross_section must be positive, got {self.cross_section}")
+            raise ValueError(f"cross_section must be positive, got {self.cross_section} cm^2")
         if self.Gg < 0:
-            raise ValueError(f"Gg must be non-negative, got {self.Gg}")
+            raise ValueError(f"Gg must be non-negative, got {self.Gg} mS")
 
 
 @dataclass(frozen=True, eq=False, kw_only=True)
@@ -90,39 +132,65 @@ class CellNetwork:
     An arbitrary graph, not necessarily a sheet. Prefer the `from_edges`, `chain` and `sheet`
     constructors; this signature is the raw struct-of-arrays form they all build.
 
+    Every dimensional argument must carry a unit. The attributes of the built object are bare
+    floats in the base unit for their dimension: units are stripped here and nowhere else.
+
     Parameters
     ----------
-    membrane_area : numpy.ndarray
-        Membrane area of each cell, shape ``(n_cells,)``, in cm^2.
-    delta_e : numpy.ndarray
+    membrane_area : pint.Quantity
+        Membrane area of each cell, an area quantity over an array of shape ``(n_cells,)``.
+    delta_e : array_like
         Extracellular volume fraction of each cell, shape ``(n_cells,)``, strictly between 0
-        and 1.
+        and 1. Dimensionless, so a bare array is accepted.
     connections : numpy.ndarray
-        Pairs of connected cell indices, shape ``(n_connections, 2)``.
-    length : numpy.ndarray
-        Length of each connection, shape ``(n_connections,)``, in cm.
-    cross_section : numpy.ndarray
-        Cross-sectional area of each connection, shape ``(n_connections,)``, in cm^2.
-    Gg : numpy.ndarray
-        Gap junction conductance of each connection, shape ``(n_connections,)``, in mS.
-    sigma_i : float
-        Intracellular conductivity, in mS/cm.
-    sigma_e : float
-        Extracellular conductivity, in mS/cm.
-    Cm : float, optional
-        Specific membrane capacitance in uF/cm^2, by default 1.0.
+        Pairs of connected cell indices, shape ``(n_connections, 2)``. Dimensionless.
+    length : pint.Quantity
+        Length of each connection, over an array of shape ``(n_connections,)``.
+    cross_section : pint.Quantity
+        Cross-sectional area of each connection, shape ``(n_connections,)``.
+    Gg : pint.Quantity
+        Gap junction conductance of each connection, shape ``(n_connections,)``.
+    sigma_i : pint.Quantity
+        Intracellular conductivity, for example ``4 * mS / cm``.
+    sigma_e : pint.Quantity
+        Extracellular conductivity, for example ``20 * mS / cm``.
+    Cm : pint.Quantity, optional
+        Specific membrane capacitance, by default ``1 * uF / cm ** 2``.
     lam_override : float or None, optional
-        Value to report as `lam` instead of the one derived from the conductances. By default
-        `None`, meaning derive it.
+        Value to report as `lam` instead of the one derived from the conductances. A ratio, so
+        dimensionless. By default `None`, meaning derive it.
+
+    Attributes
+    ----------
+    membrane_area : numpy.ndarray
+        `membrane_area` in cm^2, shape ``(n_cells,)``, read-only.
+    delta_e : numpy.ndarray
+        `delta_e`, shape ``(n_cells,)``, read-only.
+    connections : numpy.ndarray
+        `connections` as int64, shape ``(n_connections, 2)``, read-only.
+    length : numpy.ndarray
+        `length` in cm, shape ``(n_connections,)``, read-only.
+    cross_section : numpy.ndarray
+        `cross_section` in cm^2, shape ``(n_connections,)``, read-only.
+    Gg : numpy.ndarray
+        `Gg` in mS, shape ``(n_connections,)``, read-only.
+    sigma_i, sigma_e : float
+        Conductivities in mS/cm.
+    Cm : float
+        Specific capacitance in uF/cm^2.
 
     Raises
     ------
+    TypeError
+        If a dimensional argument is a bare number rather than a quantity.
+    pint.DimensionalityError
+        If a dimensional argument measures the wrong thing.
     ValueError
         If the arrays disagree on the number of cells or connections, if a connection refers
         to a cell that does not exist or joins a cell to itself, if a volume fraction is not
         strictly between 0 and 1, if a conductivity, capacitance, length, cross-section or
-        membrane area is not positive, if a gap junction conductance is negative, or if any
-        dimension exceeds `MAX_CELL_SIZE`.
+        membrane area is not positive, if a gap junction conductance is negative, if any value
+        is not finite, or if any dimension exceeds `MAX_CELL_SIZE`.
     """
 
     membrane_area: npt.NDArray[np.float64]
@@ -133,7 +201,7 @@ class CellNetwork:
     Gg: npt.NDArray[np.float64]
     sigma_i: float
     sigma_e: float
-    Cm: float = 1.0
+    Cm: Any = 1.0 * units.uF / units.cm**2
     lam_override: float | None = None
 
     def __post_init__(self) -> None:
@@ -145,10 +213,25 @@ class CellNetwork:
                 f"connections must have shape (n_connections, 2), got {connections.shape}"
             )
         object.__setattr__(self, "connections", connections)
+
+        for name in ("sigma_i", "sigma_e", "Cm"):
+            magnitude = units.in_base_units(getattr(self, name), _FIELD_DIMENSIONS[name], name=name)
+            object.__setattr__(self, name, float(magnitude))
+        if self.lam_override is not None:
+            object.__setattr__(
+                self, "lam_override", float(units.as_number(self.lam_override, name="lam_override"))
+            )
+
         for name in ("membrane_area", "delta_e", "length", "cross_section", "Gg"):
+            if name == "delta_e":
+                magnitudes = units.as_number(self.delta_e, name="delta_e")
+            else:
+                magnitudes = units.in_base_units(
+                    getattr(self, name), _FIELD_DIMENSIONS[name], name=name
+                )
             # Copy rather than adopt: stamping a caller's array read-only would reach out of
             # this object and change something it does not own.
-            value = np.array(getattr(self, name), dtype=np.float64)
+            value = np.array(magnitudes, dtype=np.float64)
             if value.ndim != 1:
                 raise ValueError(f"{name} must be one-dimensional, got shape {value.shape}")
             object.__setattr__(self, name, value)
@@ -201,32 +284,32 @@ class CellNetwork:
             raise ValueError("Gg must be non-negative")
 
         for name, value in [("sigma_i", self.sigma_i), ("sigma_e", self.sigma_e), ("Cm", self.Cm)]:
-            if value <= 0:
-                raise ValueError(f"{name} must be positive, got {value}")
+            if not np.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be positive and finite, got {value}")
 
-        # A dropped unit conversion is the failure mode worth catching here: it produces a
-        # network that solves perfectly well and describes nothing biological.
-        if (self.length > MAX_CELL_SIZE).any():
+        # Units make the *unit* impossible to get wrong; they do not make the *number* right.
+        # A cell really stated as a centimetre across is still not a cell.
+        if (self.length > _MAX_LENGTH).any():
             raise ValueError(
                 f"implausible connection length {self.length.max():g} cm, above the "
-                f"{MAX_CELL_SIZE:g} cm limit; lengths are in cm, so a cell is 16 * um"
+                f"{MAX_CELL_SIZE} limit"
             )
-        if (self.cross_section > MAX_CELL_SIZE**2).any():
+        if (self.cross_section > _MAX_AREA).any():
             raise ValueError(
                 f"implausible connection cross_section {self.cross_section.max():g} cm^2, "
-                f"above the {MAX_CELL_SIZE**2:g} cm^2 limit"
+                f"above the {_MAX_AREA:g} cm^2 limit"
             )
-        if (self.membrane_area > 6 * MAX_CELL_SIZE**2).any():
+        if (self.membrane_area > 6 * _MAX_AREA).any():
             raise ValueError(
                 f"implausible membrane_area {self.membrane_area.max():g} cm^2, above the "
-                f"{6 * MAX_CELL_SIZE**2:g} cm^2 limit"
+                f"{6 * _MAX_AREA:g} cm^2 limit"
             )
 
     def __repr__(self) -> str:
         return (
             f"{type(self).__name__}(n_cells={self.n_cells}, "
-            f"n_connections={self.n_connections}, sigma_i={self.sigma_i:g}, "
-            f"sigma_e={self.sigma_e:g}, Cm={self.Cm:g})"
+            f"n_connections={self.n_connections}, sigma_i={self.sigma_i:g} mS/cm, "
+            f"sigma_e={self.sigma_e:g} mS/cm, Cm={self.Cm:g} uF/cm^2)"
         )
 
     @property
@@ -296,7 +379,7 @@ class CellNetwork:
         -------
         scipy.sparse.csr_array
             Symmetric positive semidefinite matrix of shape ``(n_cells, n_cells)`` with zero
-            row sums.
+            row sums, in mS. Unitless, like everything the numerical core handles.
 
         Raises
         ------
@@ -318,7 +401,7 @@ class CellNetwork:
 
         A least-squares fit of ``Ge ~ lam * Gi`` over every connection, weighted by the square
         of the connection's shape factor ``length / cross_section`` (paper eq. 30). Uniform
-        conductances make the fit exact, so `lam` is then simply ``Ge / Gi``.
+        conductances make the fit exact, so `lam` is then simply ``Ge / Gi``. Dimensionless.
 
         Returns the constructor's `lam_override` instead, when one was given.
 
@@ -360,7 +443,22 @@ class CellNetwork:
         _, labels = connected_components(adjacency, directed=False)
         return np.asarray(labels, dtype=np.int64)
 
-    def with_conductances(self, Gg: npt.ArrayLike) -> CellNetwork:
+    def _as_quantities(self) -> dict[str, Any]:
+        """Re-attach base units to the stored magnitudes, for rebuilding through `__init__`.
+
+        Keeps a rebuilt network on the same unit-checking path as a fresh one, rather than
+        letting it in through a side door that skips the checks.
+        """
+        rebuilt: dict[str, Any] = {}
+        for field in fields(self):
+            value = getattr(self, field.name)
+            dimension = _FIELD_DIMENSIONS.get(field.name)
+            rebuilt[field.name] = (
+                units.with_base_units(value, dimension) if dimension is not None else value
+            )
+        return rebuilt
+
+    def with_conductances(self, Gg: Any) -> CellNetwork:
         """Build a copy of this network with different gap junction conductances.
 
         The replacement for mutating the conductances in place, which the cached derived
@@ -373,8 +471,9 @@ class CellNetwork:
 
         Parameters
         ----------
-        Gg : array_like
-            New gap junction conductance of each connection, shape ``(n_connections,)``.
+        Gg : pint.Quantity
+            New gap junction conductance of each connection, over an array of shape
+            ``(n_connections,)``.
 
         Returns
         -------
@@ -383,14 +482,18 @@ class CellNetwork:
 
         Raises
         ------
+        TypeError
+            If `Gg` is a bare array rather than a conductance quantity.
+        pint.DimensionalityError
+            If `Gg` does not measure a conductance.
         ValueError
             If `Gg` does not have one value per connection, or holds a negative conductance.
         """
-        return dataclasses.replace(self, Gg=np.asarray(Gg, dtype=np.float64))
+        return CellNetwork(**{**self._as_quantities(), "Gg": Gg})
 
 
-def _spread(value: npt.ArrayLike, size: int) -> npt.NDArray[np.float64]:
-    """Broadcast a scalar over `size` entries, leaving an array alone.
+def _spread(value: Any, size: int) -> npt.NDArray[np.float64]:
+    """Broadcast a bare magnitude over `size` entries, leaving an array alone.
 
     An array of the wrong length is passed through untouched so that `CellNetwork` reports the
     mismatch against the field it belongs to, rather than raising a shape error from here.
@@ -402,13 +505,12 @@ def _spread(value: npt.ArrayLike, size: int) -> npt.NDArray[np.float64]:
 
 
 def _check_dimension(name: str, value: float) -> None:
-    """Reject a cell dimension that is not positive or is too large to be a cell."""
-    if value <= 0:
-        raise ValueError(f"{name} must be positive, got {value}")
-    if value > MAX_CELL_SIZE:
+    """Reject a cell dimension, already in cm, that is not positive or is too big for a cell."""
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} must be positive and finite, got {value} cm")
+    if value > _MAX_LENGTH:
         raise ValueError(
-            f"implausible cell dimension {name} = {value:g} cm, above the {MAX_CELL_SIZE:g} cm "
-            f"limit; dimensions are in cm, so a 16 um cell is 16 * um"
+            f"implausible cell dimension {name} = {value:g} cm, above the {MAX_CELL_SIZE} limit"
         )
 
 
@@ -420,11 +522,11 @@ def _box_surface_area(lx: float, ly: float, lz: float) -> float:
 def from_edges(
     connections: Sequence[Connection],
     *,
-    membrane_area: npt.ArrayLike,
+    membrane_area: Any,
     delta_e: npt.ArrayLike,
-    sigma_i: float,
-    sigma_e: float,
-    Cm: float = 1.0,
+    sigma_i: Any,
+    sigma_e: Any,
+    Cm: Any = 1.0 * units.uF / units.cm**2,
     n_cells: int | None = None,
     lam_override: float | None = None,
 ) -> CellNetwork:
@@ -437,16 +539,17 @@ def from_edges(
     ----------
     connections : sequence of Connection
         The connections. May be empty, in which case `n_cells` is required.
-    membrane_area : array_like
-        Membrane area per cell in cm^2, as a scalar or one value per cell.
+    membrane_area : pint.Quantity
+        Membrane area per cell, as a scalar quantity or one value per cell.
     delta_e : array_like
         Extracellular volume fraction per cell, as a scalar or one value per cell.
-    sigma_i : float
-        Intracellular conductivity, in mS/cm.
-    sigma_e : float
-        Extracellular conductivity, in mS/cm.
-    Cm : float, optional
-        Specific membrane capacitance in uF/cm^2, by default 1.0.
+        Dimensionless.
+    sigma_i : pint.Quantity
+        Intracellular conductivity, for example ``4 * mS / cm``.
+    sigma_e : pint.Quantity
+        Extracellular conductivity, for example ``20 * mS / cm``.
+    Cm : pint.Quantity, optional
+        Specific membrane capacitance, by default ``1 * uF / cm ** 2``.
     n_cells : int or None, optional
         Number of cells. By default `None`, meaning take it from the length of whichever of
         `membrane_area` and `delta_e` is an array, or failing that from the highest cell index
@@ -461,35 +564,54 @@ def from_edges(
 
     Raises
     ------
+    TypeError
+        If a dimensional argument is a bare number rather than a quantity.
+    pint.DimensionalityError
+        If a dimensional argument measures the wrong thing.
     ValueError
         If `n_cells` cannot be determined, or if the geometry is invalid; see `CellNetwork`.
 
     Examples
     --------
     >>> from sknm import Connection, from_edges
-    >>> from sknm.units import um
+    >>> from sknm.units import cm, mS, uS, um
     >>> network = from_edges(
-    ...     [Connection((0, 1), length=16 * um, cross_section=16 * um * 19.2 * um, Gg=2e-4)],
-    ...     membrane_area=1.8e-5,
+    ...     [Connection((0, 1), length=16 * um, cross_section=16 * um * 19.2 * um, Gg=0.2 * uS)],
+    ...     membrane_area=1.8e-5 * cm**2,
     ...     delta_e=0.2,
-    ...     sigma_i=4.0,
-    ...     sigma_e=20.0,
+    ...     sigma_i=4.0 * mS / cm,
+    ...     sigma_e=20.0 * mS / cm,
     ... )
     >>> network.n_cells, network.n_connections
     (2, 1)
+
+    A bare number is refused rather than assumed to be in the base unit:
+
+    >>> from_edges([], n_cells=1, membrane_area=1.8e-5, delta_e=0.2,
+    ...            sigma_i=4.0 * mS / cm, sigma_e=20.0 * mS / cm)
+    Traceback (most recent call last):
+        ...
+    TypeError: membrane_area must be a quantity with units of area, ...
     """
+    membrane_area_base = units.in_base_units(membrane_area, "area", name="membrane_area")
+    delta_e_base = units.as_number(delta_e, name="delta_e")
     if n_cells is None:
-        n_cells = _infer_n_cells(connections, membrane_area, delta_e)
+        n_cells = _infer_n_cells(connections, membrane_area_base, delta_e_base)
     pairs = np.array([connection.cells for connection in connections], dtype=np.int64)
     return CellNetwork(
-        membrane_area=_spread(membrane_area, n_cells),
-        delta_e=_spread(delta_e, n_cells),
+        membrane_area=units.with_base_units(_spread(membrane_area_base, n_cells), "area"),
+        delta_e=_spread(delta_e_base, n_cells),
         connections=pairs.reshape((-1, 2)),
-        length=np.array([connection.length for connection in connections], dtype=np.float64),
-        cross_section=np.array(
-            [connection.cross_section for connection in connections], dtype=np.float64
+        length=units.with_base_units(
+            np.array([connection.length for connection in connections], dtype=np.float64), "length"
         ),
-        Gg=np.array([connection.Gg for connection in connections], dtype=np.float64),
+        cross_section=units.with_base_units(
+            np.array([connection.cross_section for connection in connections], dtype=np.float64),
+            "area",
+        ),
+        Gg=units.with_base_units(
+            np.array([connection.Gg for connection in connections], dtype=np.float64), "conductance"
+        ),
         sigma_i=sigma_i,
         sigma_e=sigma_e,
         Cm=Cm,
@@ -497,10 +619,8 @@ def from_edges(
     )
 
 
-def _infer_n_cells(
-    connections: Sequence[Connection], membrane_area: npt.ArrayLike, delta_e: npt.ArrayLike
-) -> int:
-    """Work out how many cells a `from_edges` call describes."""
+def _infer_n_cells(connections: Sequence[Connection], membrane_area: Any, delta_e: Any) -> int:
+    """Work out how many cells a `from_edges` call describes, from bare magnitudes."""
     for value in (membrane_area, delta_e):
         array = np.asarray(value)
         if array.ndim == 1:
@@ -515,15 +635,15 @@ def _infer_n_cells(
 def chain(
     n_cells: int,
     *,
-    lx: float,
-    ly: float,
-    lz: float,
+    lx: Any,
+    ly: Any,
+    lz: Any,
     delta_e: npt.ArrayLike,
-    sigma_i: float,
-    sigma_e: float,
-    Gg: npt.ArrayLike,
-    membrane_area: npt.ArrayLike | None = None,
-    Cm: float = 1.0,
+    sigma_i: Any,
+    sigma_e: Any,
+    Gg: Any,
+    membrane_area: Any | None = None,
+    Cm: Any = 1.0 * units.uF / units.cm**2,
     lam_override: float | None = None,
 ) -> CellNetwork:
     """Build a one-dimensional strand of cells, each connected to the next.
@@ -532,22 +652,22 @@ def chain(
     ----------
     n_cells : int
         Number of cells, at least one.
-    lx, ly, lz : float
-        Cell dimensions in cm. Connections run along x, so they have length `lx` and
+    lx, ly, lz : pint.Quantity
+        Cell dimensions, as lengths. Connections run along x, so they have length `lx` and
         cross-section ``ly * lz``.
     delta_e : array_like
         Extracellular volume fraction per cell, as a scalar or one value per cell.
-    sigma_i : float
-        Intracellular conductivity, in mS/cm.
-    sigma_e : float
-        Extracellular conductivity, in mS/cm.
-    Gg : array_like
-        Gap junction conductance in mS, as a scalar or one value per connection.
-    membrane_area : array_like or None, optional
-        Membrane area per cell in cm^2. By default `None`, meaning the surface area of a
-        cuboid cell, ``2 * (lx*ly + lx*lz + ly*lz)``.
-    Cm : float, optional
-        Specific membrane capacitance in uF/cm^2, by default 1.0.
+    sigma_i : pint.Quantity
+        Intracellular conductivity, for example ``4 * mS / cm``.
+    sigma_e : pint.Quantity
+        Extracellular conductivity, for example ``20 * mS / cm``.
+    Gg : pint.Quantity
+        Gap junction conductance, as a scalar or one value per connection.
+    membrane_area : pint.Quantity or None, optional
+        Membrane area per cell. By default `None`, meaning the surface area of a cuboid cell,
+        ``2 * (lx*ly + lx*lz + ly*lz)``.
+    Cm : pint.Quantity, optional
+        Specific membrane capacitance, by default ``1 * uF / cm ** 2``.
     lam_override : float or None, optional
         Value to report as `lam` instead of deriving it, by default `None`.
 
@@ -558,24 +678,32 @@ def chain(
 
     Raises
     ------
+    TypeError
+        If a dimensional argument is a bare number rather than a quantity.
+    pint.DimensionalityError
+        If a dimensional argument measures the wrong thing.
     ValueError
         If `n_cells` is less than one, or if the geometry is invalid; see `CellNetwork`.
     """
     if n_cells < 1:
         raise ValueError(f"n_cells must be at least 1, got {n_cells}")
-    for name, value in [("lx", lx), ("ly", ly), ("lz", lz)]:
-        _check_dimension(name, value)
+    lx_cm, ly_cm, lz_cm = _cell_dimensions(lx, ly, lz)
+    area = (
+        _box_surface_area(lx_cm, ly_cm, lz_cm)
+        if membrane_area is None
+        else units.in_base_units(membrane_area, "area", name="membrane_area")
+    )
     n_connections = n_cells - 1
     index = np.arange(n_connections, dtype=np.int64)
     return CellNetwork(
-        membrane_area=_spread(
-            _box_surface_area(lx, ly, lz) if membrane_area is None else membrane_area, n_cells
-        ),
-        delta_e=_spread(delta_e, n_cells),
+        membrane_area=units.with_base_units(_spread(area, n_cells), "area"),
+        delta_e=_spread(units.as_number(delta_e, name="delta_e"), n_cells),
         connections=np.column_stack([index, index + 1]),
-        length=np.full(n_connections, lx),
-        cross_section=np.full(n_connections, ly * lz),
-        Gg=_spread(Gg, n_connections),
+        length=units.with_base_units(np.full(n_connections, lx_cm), "length"),
+        cross_section=units.with_base_units(np.full(n_connections, ly_cm * lz_cm), "area"),
+        Gg=units.with_base_units(
+            _spread(units.in_base_units(Gg, "conductance", name="Gg"), n_connections), "conductance"
+        ),
         sigma_i=sigma_i,
         sigma_e=sigma_e,
         Cm=Cm,
@@ -587,15 +715,15 @@ def sheet(
     nx: int,
     ny: int,
     *,
-    lx: float,
-    ly: float,
-    lz: float,
+    lx: Any,
+    ly: Any,
+    lz: Any,
     delta_e: npt.ArrayLike,
-    sigma_i: float,
-    sigma_e: float,
-    Gg: npt.ArrayLike,
-    membrane_area: npt.ArrayLike | None = None,
-    Cm: float = 1.0,
+    sigma_i: Any,
+    sigma_e: Any,
+    Gg: Any,
+    membrane_area: Any | None = None,
+    Cm: Any = 1.0 * units.uF / units.cm**2,
     lam_override: float | None = None,
 ) -> CellNetwork:
     """Build a rectangular sheet of cells, each connected to its four neighbours.
@@ -608,22 +736,23 @@ def sheet(
     ----------
     nx, ny : int
         Number of cells along x and along y, each at least one.
-    lx, ly, lz : float
-        Cell dimensions in cm. An x-direction connection has length `lx` and cross-section
-        ``ly * lz``; a y-direction connection has length `ly` and cross-section ``lx * lz``.
+    lx, ly, lz : pint.Quantity
+        Cell dimensions, as lengths. An x-direction connection has length `lx` and
+        cross-section ``ly * lz``; a y-direction connection has length `ly` and cross-section
+        ``lx * lz``.
     delta_e : array_like
         Extracellular volume fraction per cell, as a scalar or one value per cell.
-    sigma_i : float
-        Intracellular conductivity, in mS/cm.
-    sigma_e : float
-        Extracellular conductivity, in mS/cm.
-    Gg : array_like
-        Gap junction conductance in mS, as a scalar or one value per connection.
-    membrane_area : array_like or None, optional
-        Membrane area per cell in cm^2. By default `None`, meaning the surface area of a
-        cuboid cell, ``2 * (lx*ly + lx*lz + ly*lz)``.
-    Cm : float, optional
-        Specific membrane capacitance in uF/cm^2, by default 1.0.
+    sigma_i : pint.Quantity
+        Intracellular conductivity, for example ``4 * mS / cm``.
+    sigma_e : pint.Quantity
+        Extracellular conductivity, for example ``20 * mS / cm``.
+    Gg : pint.Quantity
+        Gap junction conductance, as a scalar or one value per connection.
+    membrane_area : pint.Quantity or None, optional
+        Membrane area per cell. By default `None`, meaning the surface area of a cuboid cell,
+        ``2 * (lx*ly + lx*lz + ly*lz)``.
+    Cm : pint.Quantity, optional
+        Specific membrane capacitance, by default ``1 * uF / cm ** 2``.
     lam_override : float or None, optional
         Value to report as `lam` instead of deriving it, by default `None`.
 
@@ -634,26 +763,43 @@ def sheet(
 
     Raises
     ------
+    TypeError
+        If a dimensional argument is a bare number rather than a quantity.
+    pint.DimensionalityError
+        If a dimensional argument measures the wrong thing.
     ValueError
         If `nx` or `ny` is less than one, or if the geometry is invalid; see `CellNetwork`.
 
     Examples
     --------
     >>> from sknm import sheet
-    >>> from sknm.units import um
+    >>> from sknm.units import cm, mS, uS, um
     >>> network = sheet(
     ...     40, 40, lx=16 * um, ly=16 * um, lz=19.2 * um,
-    ...     delta_e=0.2, sigma_i=4.0, sigma_e=20.0, Gg=1 / 5e3,
+    ...     delta_e=0.2, sigma_i=4.0 * mS / cm, sigma_e=20.0 * mS / cm, Gg=0.2 * uS,
     ... )
     >>> network.n_connections
     3120
     >>> round(network.lam, 2)
     39.65
+
+    Units are checked, not assumed. A time where a length belongs is refused:
+
+    >>> from sknm.units import ms
+    >>> sheet(2, 2, lx=16 * ms, ly=16 * um, lz=19.2 * um, delta_e=0.2,
+    ...       sigma_i=4.0 * mS / cm, sigma_e=20.0 * mS / cm, Gg=0.2 * uS)
+    Traceback (most recent call last):
+        ...
+    pint.errors.DimensionalityError: Cannot convert from 'millisecond' ([time]) to ...
     """
     if nx < 1 or ny < 1:
         raise ValueError(f"nx and ny must be at least 1, got {(nx, ny)}")
-    for name, value in [("lx", lx), ("ly", ly), ("lz", lz)]:
-        _check_dimension(name, value)
+    lx_cm, ly_cm, lz_cm = _cell_dimensions(lx, ly, lz)
+    area = (
+        _box_surface_area(lx_cm, ly_cm, lz_cm)
+        if membrane_area is None
+        else units.in_base_units(membrane_area, "area", name="membrane_area")
+    )
 
     index = np.arange(nx * ny, dtype=np.int64).reshape((ny, nx))
     along_x = np.column_stack([index[:, :-1].reshape(-1), index[:, 1:].reshape(-1)])
@@ -661,16 +807,30 @@ def sheet(
     n_x, n_y = along_x.shape[0], along_y.shape[0]
 
     return CellNetwork(
-        membrane_area=_spread(
-            _box_surface_area(lx, ly, lz) if membrane_area is None else membrane_area, nx * ny
-        ),
-        delta_e=_spread(delta_e, nx * ny),
+        membrane_area=units.with_base_units(_spread(area, nx * ny), "area"),
+        delta_e=_spread(units.as_number(delta_e, name="delta_e"), nx * ny),
         connections=np.concatenate([along_x, along_y]).reshape((-1, 2)),
-        length=np.concatenate([np.full(n_x, lx), np.full(n_y, ly)]),
-        cross_section=np.concatenate([np.full(n_x, ly * lz), np.full(n_y, lx * lz)]),
-        Gg=_spread(Gg, n_x + n_y),
+        length=units.with_base_units(
+            np.concatenate([np.full(n_x, lx_cm), np.full(n_y, ly_cm)]), "length"
+        ),
+        cross_section=units.with_base_units(
+            np.concatenate([np.full(n_x, ly_cm * lz_cm), np.full(n_y, lx_cm * lz_cm)]), "area"
+        ),
+        Gg=units.with_base_units(
+            _spread(units.in_base_units(Gg, "conductance", name="Gg"), n_x + n_y), "conductance"
+        ),
         sigma_i=sigma_i,
         sigma_e=sigma_e,
         Cm=Cm,
         lam_override=lam_override,
     )
+
+
+def _cell_dimensions(lx: Any, ly: Any, lz: Any) -> tuple[float, float, float]:
+    """Convert and check the three cell dimensions, returning them in cm."""
+    converted = []
+    for name, value in [("lx", lx), ("ly", ly), ("lz", lz)]:
+        in_cm = float(units.in_base_units(value, "length", name=name))
+        _check_dimension(name, in_cm)
+        converted.append(in_cm)
+    return converted[0], converted[1], converted[2]
