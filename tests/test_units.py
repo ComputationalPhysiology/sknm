@@ -46,6 +46,8 @@ def test_every_base_unit_parses_and_is_distinct_by_dimension():
         (5300 * units.fF, "capacitance", 5.3e-6),
         (1 * units.uF / (units.cm * units.cm), "specific_capacitance", 1.0),
         (20 * units.uA / (units.cm * units.cm), "current_density", 20.0),
+        (1 * units.cm / units.s, "velocity", 1.0),
+        (1 * units.mm / units.s, "velocity", 0.1),
     ],
 )
 def test_in_base_units_converts_to_the_documented_base(written, dimension, expected):

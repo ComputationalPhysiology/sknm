@@ -80,3 +80,13 @@ How widely gap junction conductances are spread around their nominal value acros
 **Conduction velocity**:
 The speed at which the wave of membrane potential travels across a network, measured between two
 cells from the times their membrane potentials cross a threshold.
+
+**Activation time**:
+The time at which one cell's membrane potential first reaches a threshold. Undefined for a cell
+the wave never reached.
+_Avoid_: depolarization time, arrival time, crossing time
+
+**Maximal upstroke velocity**:
+The greatest rate at which one cell's membrane potential rises during its action potential,
+`max dv/dt`. A property of a single cell, unlike a conduction velocity, which needs two.
+_Avoid_: dvdtmax, rise rate, slope
