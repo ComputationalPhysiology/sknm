@@ -7,16 +7,25 @@ comparisons can be reproduced. See ``CONTEXT.md`` for the domain vocabulary.
 
 from sknm import units
 from sknm.assembly import Operator, Variant, assemble
+from sknm.linalg import BiCGSTABSolver, CGSolver, ConvergenceError, DirectSolver, Solver
 from sknm.membrane import MembraneModel, from_gotranx
 from sknm.network import CellNetwork, Connection, chain, from_edges, sheet
+from sknm.simulation import Result, Simulation
 
 __version__ = "0.1.0.dev0"
 
 __all__ = [
+    "BiCGSTABSolver",
+    "CGSolver",
     "CellNetwork",
     "Connection",
+    "ConvergenceError",
+    "DirectSolver",
     "MembraneModel",
     "Operator",
+    "Result",
+    "Simulation",
+    "Solver",
     "Variant",
     "__version__",
     "assemble",
