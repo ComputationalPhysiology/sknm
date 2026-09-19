@@ -5,8 +5,20 @@ A Python implementation of the Simplified Kirchhoff Network Model (SKNM) of Jaeg
 comparisons can be reproduced. See ``CONTEXT.md`` for the domain vocabulary.
 """
 
+from sknm import units
 from sknm.membrane import MembraneModel, from_gotranx
+from sknm.network import CellNetwork, Connection, chain, from_edges, sheet
 
 __version__ = "0.1.0.dev0"
 
-__all__ = ["MembraneModel", "__version__", "from_gotranx"]
+__all__ = [
+    "CellNetwork",
+    "Connection",
+    "MembraneModel",
+    "__version__",
+    "chain",
+    "from_edges",
+    "from_gotranx",
+    "sheet",
+    "units",
+]

@@ -28,7 +28,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Typing :: Typed",
 ]
-dependencies = ["numpy", "scipy"]
+# scipy >= 1.11 for `diags_array`, which the Laplacian assembly uses; the sparse *array*
+# classes it works with arrived earlier, but that function did not.
+dependencies = ["numpy", "scipy>=1.11"]
 
 [project.urls]
 Homepage = "https://github.com/ComputationalPhysiology/sknm"
@@ -41,7 +43,7 @@ examples = ["matplotlib"]
 # Only needed to regenerate the membrane models; the generated Python is committed.
 # The committed code was produced with gotranx main@70171e8.
 codegen = ["gotranx"]
-dev = ["sknm[test,examples]", "ruff", "mypy", "pre-commit"]
+dev = ["sknm[test,examples]", "ruff", "mypy", "scipy-stubs", "pre-commit"]
 all = ["sknm[test,examples,codegen,dev]"]
 
 [tool.hatch.build.targets.wheel]
@@ -79,8 +81,10 @@ disallow_untyped_defs = false
 check_untyped_defs = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "--strict-markers --strict-config --import-mode=importlib"
+# `src` is on the list so that `--doctest-modules` reaches the Examples blocks in the
+# package's own docstrings. They are documentation users copy, so they are run like tests.
+testpaths = ["tests", "src"]
+addopts = "--strict-markers --strict-config --import-mode=importlib --doctest-modules"
 markers = [
     # Needs the reference C++ in references/SKNM_code and a C++ compiler, neither of which is
     # present in a fresh clone, so these tests skip rather than fail.
