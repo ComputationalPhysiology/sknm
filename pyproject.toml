@@ -62,7 +62,11 @@ select = ["E", "F", "W", "I", "UP", "B", "NPY", "RUF"]
 
 [tool.mypy]
 files = ["src/sknm"]
-python_version = "3.11"
+# No python_version override: mypy follows the interpreter it runs on. Pinning it to the
+# supported floor breaks against numpy >= 2.5, whose stubs use `type` statements that only
+# parse as Python 3.12+ -- and numpy >= 2.5 itself requires 3.12, so the floor and the stubs
+# cannot both be satisfied. The 3.11 floor is covered by the test matrix, which imports and
+# runs the package on 3.11.
 disallow_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
