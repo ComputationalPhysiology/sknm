@@ -62,14 +62,30 @@ select = ["E", "F", "W", "I", "UP", "B", "NPY", "RUF"]
 
 [tool.mypy]
 files = ["src/sknm"]
-python_version = "3.11"
+# No python_version override: mypy follows the interpreter it runs on. Pinning it to the
+# supported floor breaks against numpy >= 2.5, whose stubs use `type` statements that only
+# parse as Python 3.12+ -- and numpy >= 2.5 itself requires 3.12, so the floor and the stubs
+# cannot both be satisfied. The 3.11 floor is covered by the test matrix, which imports and
+# runs the package on 3.11.
 disallow_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 
+[[tool.mypy.overrides]]
+# gotranx emits unannotated defs, and this file is generated rather than hand-edited. Only
+# that one rule is relaxed; check_untyped_defs keeps the bodies type-checked.
+module = "sknm.membrane.base_model_IM"
+disallow_untyped_defs = false
+check_untyped_defs = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers --strict-config --import-mode=importlib"
+markers = [
+    # Needs the reference C++ in references/SKNM_code and a C++ compiler, neither of which is
+    # present in a fresh clone, so these tests skip rather than fail.
+    "reference: compares against the authors' C++ reference; skipped unless it is available",
+]
 
 [tool.coverage.run]
 source = ["sknm"]

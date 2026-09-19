@@ -12,8 +12,8 @@ def test_sknm_is_importable():
 def test_module_version_matches_installed_distribution():
     """`__version__` is written by hand, so it can drift from `pyproject.toml`.
 
-    Ticket 05 chose a static version over a VCS-derived one; this is the check that
-    pays for that choice.
+    The version is static rather than derived from version control, so this is what
+    catches the two falling out of step.
     """
     import sknm
 
