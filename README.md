@@ -8,8 +8,9 @@ The domain is cell-based cardiac electrophysiology: excitable cells coupled thro
 resolved per cell rather than homogenized into a continuum. See [`CONTEXT.md`](CONTEXT.md) for the
 vocabulary this codebase uses.
 
-> **Status: early development.** The model, the solvers and the analysis are implemented and
-> reproduce the paper's published conduction velocity; the example scripts are not written yet.
+> **Status: early development.** The model, the solvers and the analysis are implemented, and
+> the scripts in [`examples/`](examples) reproduce the paper's hiPSC-CM figures. The pancreatic
+> β cell model, and the figures that use it, are not implemented.
 
 ## Installation
 
@@ -45,6 +46,37 @@ print(recorder.max_upstroke_velocity[presets.hipsc_centre_cell(40, 40)], "V/s")
 ```
 
 Run the same network as `Variant.KNM` to solve for the extracellular potential as well.
+
+## Examples
+
+Each script in [`examples/`](examples) reproduces one of the paper's hiPSC-CM figures, writing
+it to `examples/figures/` and printing the numbers it plotted.
+
+| Script | Reproduces |
+|---|---|
+| `fig02_travelling_wave.py` | Figure 2 — snapshots of a wave crossing 40×40 cells, KNM against SKNM |
+| `fig03_anisotropy.py` | Figure 3 — conduction velocity against cell length-to-width ratio |
+| `fig04_gap_junction_variation.py` | Figures 4 and S2 — conduction velocity against gap junction variation |
+| `fig05_sources_of_difference.py` | Figure 5 — the two factors that make KNM and SKNM differ |
+
+```bash
+python -m pip install -e ".[examples]"
+python examples/fig03_anisotropy.py           # a reduced sample, about a minute
+python examples/fig03_anisotropy.py --full    # the paper's whole sample
+```
+
+Every script is **fast by default**: it sweeps every other point of its parameter range unless
+given `--full`. The reduction is fewer points, never cheaper points — each point plotted is
+computed on the paper's own 40×40 sheet at its own 0.02 ms time step, so `--full` adds markers
+rather than moving them. Results are cached under `examples/results/` and reused, so restyling
+a figure costs no simulation; the cache is keyed on the parameters of a run and cannot see that
+`sknm` itself has changed, so pass `--no-cache` or delete the directory after changing the
+library.
+
+The gap junction draws come from a seeded generator rather than from the paper's own random
+numbers, so curves that depend on them sit very close to the published ones rather than on top
+of them. The authors' draws can be passed to `presets.vary_conductances` instead, if you have
+them.
 
 ## Development
 

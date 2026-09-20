@@ -33,9 +33,9 @@ from sknm import units
 from sknm.analysis import ConductionPath
 from sknm.network import CellNetwork, sheet
 
-#: Cell length and width for each anisotropy factor, in the paper's Figure 3. Measurements
-#: rather than a formula -- 1.5 gives 21 x 14 um, which is neither ``16 * 1.5`` nor
-#: area-preserving -- so an anisotropy factor not in this table cannot be interpolated to.
+#: Cell length and width at the five anisotropy factors the paper's Figure 3 is drawn at.
+#: `hipsc_cell_size` reproduces every one of them exactly; these are the values the reference
+#: implementation ships meshes for, and so the sample a reproduction of that figure uses.
 CELL_DIMENSIONS: Mapping[float, tuple[Any, Any]] = MappingProxyType(
     {
         1.0: (16 * units.um, 16 * units.um),
@@ -60,6 +60,9 @@ GAP_JUNCTION_CONDUCTANCE = (1 / (5e3 * units.kohm)).to(units.mS)
 DELTA_E = 0.2
 #: Stimulus current amplitude, in the membrane model's own convention, so bare.
 STIMULUS_AMPLITUDE = 20.0
+
+#: Intracellular volume of one cell in um^3, which `hipsc_cell_size` holds fixed.
+_CELL_VOLUME = 4000.0
 
 #: Columns of the two cells a conduction velocity is measured between, and the number of cells
 #: between them, which sets the distance.
@@ -86,8 +89,8 @@ def hipsc_sheet(
     nx, ny : int, optional
         Number of cells along x and along y, by default 40 each, the paper's sheet.
     alpha : float, optional
-        Anisotropy factor, by default 1.0. Must be one of the five measured values in
-        `CELL_DIMENSIONS`. Dimensionless, so a bare number.
+        Anisotropy factor, by default 1.0, setting the cell size through `hipsc_cell_size`.
+        Dimensionless, so a bare number.
     delta_e : float, optional
         Extracellular volume fraction, by default 0.2. Sets the cell's third dimension,
         ``lz = (1 + delta_e) * ly``, as well as the extracellular conductance. Dimensionless.
@@ -108,8 +111,8 @@ def hipsc_sheet(
     pint.DimensionalityError
         If `alpha` or `delta_e` carries a unit, or `Gg` is not a conductance.
     ValueError
-        If `alpha` is not one of the measured values, if `delta_e` is not a single number, or
-        if `nx` or `ny` is less than one.
+        If `alpha` is not positive, if `delta_e` is not a single number, or if `nx` or `ny` is
+        less than one.
 
     Examples
     --------
@@ -120,7 +123,7 @@ def hipsc_sheet(
     >>> round(network.lam, 2)
     39.65
     """
-    lx, ly = _cell_size(alpha)
+    lx, ly = hipsc_cell_size(alpha)
     fraction = units.as_number(delta_e, name="delta_e")
     if np.ndim(fraction) != 0:
         raise ValueError(
@@ -212,8 +215,7 @@ def hipsc_conduction_path(nx: int = 40, ny: int = 40, *, alpha: Any = 1.0) -> Co
     Raises
     ------
     ValueError
-        If `alpha` is not one of the measured values, or if the sheet is too narrow to hold both
-        cells.
+        If `alpha` is not positive, or if the sheet is too narrow to hold both cells.
 
     Examples
     --------
@@ -222,7 +224,7 @@ def hipsc_conduction_path(nx: int = 40, ny: int = 40, *, alpha: Any = 1.0) -> Co
     >>> path.start, path.end
     (769, 794)
     """
-    lx, _ = _cell_size(alpha)
+    lx, _ = hipsc_cell_size(alpha)
     first, last = _CONDUCTION_COLUMNS
     if nx <= last:
         raise ValueError(
@@ -332,16 +334,50 @@ def vary_conductances(network: CellNetwork, gamma: Any, draws: npt.ArrayLike) ->
     )
 
 
-def _cell_size(alpha: Any) -> tuple[Any, Any]:
-    """Look up the measured cell length and width for an anisotropy factor."""
+def hipsc_cell_size(alpha: Any = 1.0) -> tuple[Any, Any]:
+    """Cell length and width at an anisotropy factor, holding the cell's volume fixed.
+
+    Making a cell longer makes it correspondingly narrower, so that its intracellular volume
+    stays at the roughly 4 pL a hiPSC-CM has::
+
+        ly = round(cbrt(4000 um^3 / alpha) * 2) / 2   um, to the nearest half micrometre
+        lx = alpha * ly
+
+    The rounding is why the volume comes out between 3.9 and 4.1 pL rather than exactly 4, and
+    it is what makes the five sizes in `CELL_DIMENSIONS` come out at the round numbers they do.
+    The third dimension is not set here: it follows the extracellular volume fraction,
+    ``lz = (1 + delta_e) * ly``, which `hipsc_sheet` applies.
+
+    Parameters
+    ----------
+    alpha : float, optional
+        Anisotropy factor, the cell's length-to-width ratio, by default 1.0. Dimensionless, so
+        a bare number.
+
+    Returns
+    -------
+    tuple of pint.Quantity
+        Length along x and width along y, as lengths.
+
+    Raises
+    ------
+    pint.DimensionalityError
+        If `alpha` carries a unit.
+    ValueError
+        If `alpha` is not positive and finite.
+
+    Examples
+    --------
+    >>> from sknm import presets
+    >>> lx, ly = presets.hipsc_cell_size(4.0)
+    >>> float(lx.m_as("um")), float(ly.m_as("um"))
+    (40.0, 10.0)
+    """
     factor = float(units.as_number(alpha, name="alpha"))
-    if factor not in CELL_DIMENSIONS:
-        raise ValueError(
-            f"alpha must be one of the measured values {sorted(CELL_DIMENSIONS)}, got {factor}. "
-            f"The cell dimensions are measurements rather than a formula, so there is nothing "
-            f"to interpolate between them; build the sheet with `sknm.sheet` to use your own."
-        )
-    return CELL_DIMENSIONS[factor]
+    if not np.isfinite(factor) or factor <= 0.0:
+        raise ValueError(f"alpha must be positive and finite, got {factor}")
+    ly = round(np.cbrt(_CELL_VOLUME / factor) * 2.0) / 2.0
+    return factor * ly * units.um, ly * units.um
 
 
 def _measurement_row(ny: int) -> int:

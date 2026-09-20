@@ -239,6 +239,51 @@ def test_lam_refuses_a_network_with_no_intracellular_coupling():
 
 
 # --------------------------------------------------------------------------------------
+# conductance_misfit
+# --------------------------------------------------------------------------------------
+
+
+def test_the_misfit_vanishes_where_the_conductance_ratio_is_exact(paper_sheet):
+    """Uniform conductances make Ge = lam * Gi hold connection by connection, so F(lam) = 0."""
+    assert paper_sheet.conductance_misfit() == pytest.approx(0.0, abs=1e-20)
+
+
+def test_the_misfit_is_lowest_at_lam():
+    """`lam` is defined as the minimum of F, so no other ratio can score better."""
+    network = sheet(4, 3, **ANISOTROPIC)
+    best = network.conductance_misfit()
+    for ratio in (0.5, 0.9, 1.1, 2.0) * np.array([network.lam]):
+        assert network.conductance_misfit(ratio) > best
+
+
+def test_the_misfit_is_the_shape_factor_weighted_sum_of_squares():
+    """Paper eq. 29: F(lam) = sum((Ge - lam*Gi)^2 * (l/A)^2), the function eq. 30 minimizes."""
+    network = sheet(4, 3, **ANISOTROPIC)
+    weight = (network.length / network.cross_section) ** 2
+    for ratio in (1.0, network.lam, 30.0):
+        expected = np.sum((network.Ge - ratio * network.Gi) ** 2 * weight)
+        assert network.conductance_misfit(ratio) == pytest.approx(expected, rel=1e-14)
+
+
+def test_the_misfit_grows_as_the_gap_junctions_are_spread():
+    """The paper's Figure 5: spreading Gg breaks Ge = lam*Gi further, whatever lam is chosen."""
+    network = sheet(12, 12, **ISOTROPIC)
+    draws = np.random.default_rng(0).random(network.n_connections)
+    previous = network.conductance_misfit()
+    for gamma in (0.2, 0.5, 1.0):
+        spread = network.with_conductances(network.Gg * (1.0 + gamma * (1.0 - 2.0 * draws)) * mS)
+        misfit = spread.conductance_misfit()
+        assert misfit > previous
+        previous = misfit
+
+
+def test_the_misfit_refuses_a_network_with_no_intracellular_coupling():
+    network = chain(3, **ISOTROPIC | {"Gg": 0.0 * mS})
+    with pytest.raises(ValueError, match="lam_override"):
+        _ = network.conductance_misfit()
+
+
+# --------------------------------------------------------------------------------------
 # Conductances
 # --------------------------------------------------------------------------------------
 
