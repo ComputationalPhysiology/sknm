@@ -5,7 +5,7 @@ A Python implementation of the Simplified Kirchhoff Network Model (SKNM) of Jaeg
 comparisons can be reproduced. See ``CONTEXT.md`` for the domain vocabulary.
 """
 
-from sknm import units
+from sknm import analysis, presets, units
 from sknm.assembly import Operator, Variant, assemble
 from sknm.linalg import BiCGSTABSolver, CGSolver, ConvergenceError, DirectSolver, Solver
 from sknm.membrane import MembraneModel, from_gotranx
@@ -28,10 +28,12 @@ __all__ = [
     "Solver",
     "Variant",
     "__version__",
+    "analysis",
     "assemble",
     "chain",
     "from_edges",
     "from_gotranx",
+    "presets",
     "sheet",
     "units",
 ]

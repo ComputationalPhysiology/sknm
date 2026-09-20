@@ -22,7 +22,13 @@ Dimension                 Base unit       Written as
 ``specific_capacitance``  uF per cm^2     ``uF / cm ** 2``
 ``current``               microampere     ``uA``
 ``current_density``       uA per cm^2     ``uA / cm ** 2``
+``velocity``              cm per second   ``cm / s``
 ========================  ==============  =====================
+
+The one oddity is `velocity`, whose base is centimetres per *second* while every other time in
+the package is a millisecond. A conduction velocity is reported in cm/s throughout the
+literature, and it is the only quantity here that leaves as a number a reader compares against a
+published figure rather than as state the numerical core consumes.
 
 Read an attribute off a `CellNetwork` and you get a bare float in the base unit for its
 dimension, documented on the attribute. Conversion happens at the constructors and nowhere
@@ -103,6 +109,7 @@ BASE_UNITS: dict[str, str] = {
     "specific_capacitance": "uF / cm ** 2",
     "current": "uA",
     "current_density": "uA / cm ** 2",
+    "velocity": "cm / s",
 }
 
 
