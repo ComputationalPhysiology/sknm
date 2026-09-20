@@ -426,6 +426,52 @@ class CellNetwork:
         """float: Alias for `lam`, spelled out."""
         return self.lam
 
+    def conductance_misfit(self, lam: float | None = None) -> float:
+        """How badly ``Ge = lam * Gi`` fails across the network, paper eq. (29).
+
+        The weighted sum of squares that `lam` minimizes. SKNM is derived by assuming a single
+        ratio relates the extracellular and intracellular conductance of *every* connection;
+        this is how far the network is from letting it. Zero means the assumption holds
+        exactly, and SKNM then reproduces KNM to solver tolerance. It grows as gap junction
+        conductances are spread or as cells are made anisotropic, which is where the two
+        models start to disagree.
+
+        Parameters
+        ----------
+        lam : float or None, optional
+            Ratio to score. By default `None`, meaning `lam` itself, which is the lowest
+            score any ratio can reach.
+
+        Returns
+        -------
+        float
+            The misfit, in ``(mS/cm)^2``: conductances weighted by the connection's shape
+            factor ``length / cross_section``, as in the fit that defines `lam`.
+
+        Raises
+        ------
+        ValueError
+            If `lam` is `None` and no connection conducts intracellularly, which leaves the
+            fit undetermined.
+
+        Examples
+        --------
+        >>> from sknm import sheet
+        >>> from sknm.units import cm, mS, uF, um
+        >>> network = sheet(
+        ...     4, 4, lx=16 * um, ly=16 * um, lz=19.2 * um, delta_e=0.2,
+        ...     sigma_i=4.0 * mS / cm, sigma_e=20.0 * mS / cm, Gg=2e-4 * mS,
+        ...     Cm=1.0 * uF / cm**2,
+        ... )
+        >>> round(network.conductance_misfit(), 12)
+        0.0
+        >>> bool(network.conductance_misfit(1.0) > 0.0)
+        True
+        """
+        ratio = self.lam if lam is None else float(lam)
+        shape_factor = (self.length / self.cross_section) ** 2
+        return float(np.sum((self.Ge - ratio * self.Gi) ** 2 * shape_factor))
+
     @cached_property
     def component_labels(self) -> npt.NDArray[np.int64]:
         """numpy.ndarray: Connected-component label of each cell, shape ``(n_cells,)``.

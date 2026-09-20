@@ -1,13 +1,19 @@
 # --- sknm: working material, deliberately not part of the shipped package ---
-# See .scratch/sknm-library/issues/05-packaging-and-tooling.md for the rationale.
 # paper PDFs, the authors' CC-BY C++, 47 MB of visualization-only meshes
 references/
 # nested checkouts (gotranx, editable-installed for the codegen extra)
 third-party/
-# wayfinder map, decision tickets, fact records
+# design notes and fact records
 .scratch/
 # includes docs/adr/
 docs/
+
+# What the example scripts produce. Neither is committed: a cached result is keyed on the
+# parameters of its run and cannot tell that the library computing it has changed, so a
+# committed one would eventually plot a figure from an implementation that no longer exists.
+# Both directories rebuild in a few minutes from a clean checkout.
+examples/results/
+examples/figures/
 
 # --- Created by https://www.toptal.com/developers/gitignore/api/python,c,c++ ---
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,c,c++

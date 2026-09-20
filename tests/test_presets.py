@@ -18,8 +18,8 @@ from sknm.units import cm, mS, ms, uF, um
 NX, NY = 40, 40
 
 
-def test_the_five_cell_sizes_are_the_measured_ones():
-    """Measurements, not a formula: 1.5 gives 21x14, neither 16*1.5 nor area-preserving."""
+def test_the_five_cell_sizes_are_the_published_ones():
+    """The sizes the paper's Figure 3 is drawn at, and what `hipsc_cell_size` must reproduce."""
     measured = {
         1.0: (16.0, 16.0),
         1.5: (21.0, 14.0),
@@ -34,9 +34,9 @@ def test_the_five_cell_sizes_are_the_measured_ones():
         assert actual_y.m_as(um) == pytest.approx(ly)
 
 
-def test_an_unmeasured_anisotropy_factor_is_refused():
-    with pytest.raises(ValueError, match="alpha must be one of"):
-        presets.hipsc_sheet(4, 4, alpha=2.5)
+def test_an_anisotropy_factor_of_zero_is_refused():
+    with pytest.raises(ValueError, match="alpha must be positive"):
+        presets.hipsc_sheet(4, 4, alpha=0.0)
 
 
 def test_the_anisotropy_factor_may_be_written_as_a_whole_number():
@@ -316,3 +316,47 @@ def test_a_draw_outside_the_unit_interval_is_refused(small_sheet, bad):
 
     with pytest.raises(ValueError, match="draws must be between 0 and 1"):
         presets.vary_conductances(small_sheet, 0.5, draws)
+
+
+def test_the_cell_size_formula_reproduces_every_measured_pair():
+    for alpha, (lx, ly) in presets.CELL_DIMENSIONS.items():
+        computed_x, computed_y = presets.hipsc_cell_size(alpha)
+        assert computed_x.m_as(um) == pytest.approx(lx.m_as(um))
+        assert computed_y.m_as(um) == pytest.approx(ly.m_as(um))
+
+
+def test_the_default_anisotropy_factor_is_the_one_the_sheet_defaults_to():
+    """The two defaults have to agree, or `hipsc_sheet()` and `hipsc_cell_size()` disagree."""
+    lx, ly = presets.hipsc_cell_size()
+    assert (lx.m_as(um), ly.m_as(um)) == (16.0, 16.0)
+    assert presets.hipsc_cell_size() == presets.hipsc_cell_size(1.0)
+
+
+def test_an_anisotropy_factor_between_the_measured_ones_is_accepted():
+    lx, ly = presets.hipsc_cell_size(2.5)
+    assert lx.m_as(um) == pytest.approx(2.5 * ly.m_as(um))
+    network = presets.hipsc_sheet(4, 4, alpha=2.5)
+    assert network.n_cells == 16
+
+
+def test_the_cell_size_holds_the_intracellular_volume_near_four_picolitres():
+    """The width is the one that would give exactly 4 pL, moved at most a quarter micrometre.
+
+    The volume is therefore near 4 pL rather than at it, and how near depends on where the
+    rounding lands: 3802 um^3 at alpha=2.5, against 4096 at alpha=1.
+    """
+    for alpha in (1.0, 1.7, 2.5, 3.3, 4.0):
+        lx, ly = presets.hipsc_cell_size(alpha)
+        assert abs(ly.m_as(um) - np.cbrt(4000.0 / alpha)) <= 0.25
+        assert lx.m_as(um) * ly.m_as(um) ** 2 == pytest.approx(4000.0, rel=0.08)
+
+
+def test_the_cell_width_is_rounded_to_half_a_micrometre():
+    for alpha in (1.0, 1.7, 2.5, 3.3, 4.0):
+        _, ly = presets.hipsc_cell_size(alpha)
+        assert (2.0 * ly.m_as(um)) % 1.0 == 0.0
+
+
+def test_an_anisotropy_factor_of_zero_or_less_is_refused():
+    with pytest.raises(ValueError, match="alpha must be positive"):
+        presets.hipsc_cell_size(0.0)
