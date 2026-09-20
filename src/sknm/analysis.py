@@ -33,9 +33,6 @@ from sknm import units
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only, and would be circular
     from sknm.simulation import Simulation
 
-#: Membrane potential at which a cell counts as activated, in mV. The reference's own value.
-DEFAULT_THRESHOLD = -20.0 * units.mV
-
 
 @dataclass(frozen=True)
 class ConductionPath:
@@ -112,9 +109,13 @@ class ActivationRecorder:
     simulation : Simulation
         The simulation to watch. Its current membrane potential is taken as the starting point,
         so build the recorder after setting the initial condition.
-    threshold : pint.Quantity, optional
-        Membrane potential at which a cell counts as activated, as a potential. By default
-        ``-20 * mV``, the reference implementation's value.
+    threshold : pint.Quantity
+        Membrane potential at which a cell counts as activated, as a potential. Required, and
+        deliberately without a default: the value belongs to the membrane model rather than to
+        the measurement, and one model's is another's catastrophe. `sknm.presets` carries
+        `HIPSC_THRESHOLD` and `BETA_THRESHOLD`, which are -20 mV and -50 mV -- and a beta cell
+        action potential peaks at about -19.5 mV, so the cardiac threshold applied to it leaves
+        every measurement cell unactivated.
     stop_when_activated : int, sequence of int or None, optional
         Cells whose activation ends the run. By default `None`, meaning run to `t_end`. Naming
         the far end of a conduction path stops the run as soon as the wave has arrived, which
@@ -139,7 +140,7 @@ class ActivationRecorder:
         self,
         simulation: Simulation,
         *,
-        threshold: Any = DEFAULT_THRESHOLD,
+        threshold: Any,
         stop_when_activated: npt.ArrayLike | None = None,
     ) -> None:
         self._threshold = float(units.in_base_units(threshold, "potential", name="threshold"))

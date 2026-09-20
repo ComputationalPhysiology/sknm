@@ -1,16 +1,22 @@
-"""The paper's own setup for human induced pluripotent stem cell derived cardiomyocytes.
+"""The paper's own two setups: hiPSC-derived cardiomyocytes, and pancreatic beta cells.
 
 Everything here is data from Jaeger & Tveito (2023) and its reference implementation, put
-behind names rather than left to be retyped: the five measured cell sizes, the material
-constants, the sheet they are arranged in, where the stimulus goes and where the two published
-numbers are measured. The general constructors in `sknm.network` take explicit geometry
-instead; this module is what to reach for when the intent is "the paper's simulation"::
+behind names rather than left to be retyped: the cell sizes, the material constants, the sheet
+they are arranged in, where the stimulus goes and where the published numbers are measured. The
+general constructors in `sknm.network` take explicit geometry instead; this module is what to
+reach for when the intent is "the paper's simulation"::
 
     network = presets.hipsc_sheet(40, 40)
     sim = Simulation(network, from_gotranx(base_model_IM), dt=0.02 * ms)
     sim.set_parameter("stim_amplitude", presets.hipsc_stimulus_amplitude(40, 40))
 
-Two of these constants are easy to get wrong from the paper alone and are worth naming:
+    network = presets.beta_sheet(15, 15)
+    sim = Simulation(network, presets.beta_membrane_model(), dt=0.02 * ms)
+    sim.set_parameter("gkatpbar", presets.beta_stimulus_conductance(15, 15))
+
+The two reference drivers are structurally identical and differ only in constants, so the two
+families here mirror one another. Four of those constants are easy to get wrong from the paper
+alone and are worth naming:
 
 - `MEMBRANE_AREA` is a **constant**, the same for every anisotropy factor. It is not the
   surface area of the cuboid the cell dimensions describe, which `sheet` would compute by
@@ -18,6 +24,12 @@ Two of these constants are easy to get wrong from the paper alone and are worth 
 - `hipsc_stimulus_amplitude` returns an amplitude for **every** cell, zero outside the
   stimulated region. A membrane model carries a stimulus amplitude of its own, and setting one
   only on the stimulated cells leaves every other cell stimulating itself.
+- A beta cell's third dimension is **fixed** at its cell size, not derived from the
+  extracellular volume fraction the way the hiPSC sheet derives it. At ``delta_e=0.5`` the
+  hiPSC rule would give 19.5 um where the reference uses 13.
+- `BETA_CM` is **derived** rather than the round 1.0 uF/cm2. A beta cell's membrane area is the
+  surface of a sphere and its membrane model carries an absolute capacitance of 5300 fF; the
+  two disagree by 0.18% if the specific capacitance is assumed. See `BETA_CM`.
 """
 
 from __future__ import annotations
@@ -31,6 +43,7 @@ import numpy.typing as npt
 
 from sknm import units
 from sknm.analysis import ConductionPath
+from sknm.membrane import PBM, MembraneModel, from_gotranx
 from sknm.network import CellNetwork, sheet
 
 #: Cell length and width at the five anisotropy factors the paper's Figure 3 is drawn at.
@@ -61,6 +74,10 @@ DELTA_E = 0.2
 #: Stimulus current amplitude, in the membrane model's own convention, so bare.
 STIMULUS_AMPLITUDE = 20.0
 
+#: Membrane potential at which a hiPSC-CM counts as activated. `sknm.analysis` has no default
+#: threshold, because this one applied to a beta cell would leave every cell unactivated.
+HIPSC_THRESHOLD = -20.0 * units.mV
+
 #: Intracellular volume of one cell in um^3, which `hipsc_cell_size` holds fixed.
 _CELL_VOLUME = 4000.0
 
@@ -72,6 +89,50 @@ _CONDUCTION_COLUMNS = (9, 34)
 #: leftmost columns over eleven rows centred on the row the velocity is measured along.
 _STIMULUS_COLUMNS = 2
 _STIMULUS_ROWS = 11
+
+# --- the pancreatic beta cell setup ---------------------------------------------------------
+
+#: Diameter of a beta cell, and every one of its three dimensions. Unlike a hiPSC-CM, whose
+#: third dimension follows the extracellular volume fraction, this is fixed.
+BETA_CELL_SIZE = 13.0 * units.um
+#: Membrane area of one beta cell: the surface of a sphere of diameter `BETA_CELL_SIZE`, which
+#: is 5.3093e-6 cm2 and is the reference's stated constant to every digit it quotes. A beta cell
+#: is modelled as a sphere; the cuboid its cell size describes would have nearly twice the area.
+BETA_MEMBRANE_AREA = (np.pi * BETA_CELL_SIZE**2).to(units.cm**2)
+#: Absolute membrane capacitance of one beta cell, the value `sknm.membrane.PBM`'s voltage
+#: equation divides by. Published by Bertram & Sherman (2004) with the rest of the model.
+BETA_CAPACITANCE = 5300.0 * units.fF
+#: Specific membrane capacitance of a beta cell, **derived** so that ``BETA_CM *
+#: BETA_MEMBRANE_AREA`` is exactly `BETA_CAPACITANCE`, rather than assumed to be the round
+#: 1.0 uF/cm2 the reference writes.
+#:
+#: The three numbers cannot all be round at once: 5300 fF is a published measurement, the
+#: membrane area is pi*d^2 at a diameter rounded to 13 um, and their quotient is 0.998248
+#: uF/cm2. The reference carries 5300 fF in the membrane model and 1.0 uF/cm2 in the network,
+#: which disagree by 0.18% -- enough for `sknm.Simulation` to reject the pairing, since the two
+#: capacitances have to be the same number for the split to conserve charge. Of the three the
+#: specific capacitance is the only generic constant rather than a measurement, so it is the
+#: one that gives way. The effect on a conduction velocity is about 0.1%.
+BETA_CM = (BETA_CAPACITANCE / BETA_MEMBRANE_AREA).to(units.uF / units.cm**2)
+#: Gap junction conductance between beta cells, the reference's 5e6 kOhm inverted. A thousand
+#: times weaker than the cardiac one, which is most of why a beta wave is 150 times slower.
+BETA_GAP_JUNCTION_CONDUCTANCE = (1 / (5e6 * units.kohm)).to(units.mS)
+#: Extracellular volume fraction of the beta cell setup.
+BETA_DELTA_E = 0.5
+#: The beta cell membrane model's own K-ATP conductance, in its own convention, so bare.
+BETA_KATP_CONDUCTANCE = 500.0
+#: The stimulated value of that conductance. The beta stimulus is a *halved* conductance rather
+#: than an injected current, so the unstimulated cells keep the model's own default.
+BETA_STIMULUS_KATP_CONDUCTANCE = 250.0
+#: Membrane potential at which a beta cell counts as activated. A beta action potential peaks at
+#: about -19.5 mV, so `HIPSC_THRESHOLD` applied here would activate almost nothing.
+BETA_THRESHOLD = -50.0 * units.mV
+
+#: The reference's beta cell measurement columns and stimulated region, in the same form as the
+#: cardiac ones above: ``x < 2*lx`` and ``5*ly < y < 10*ly`` with a node at each cell centre.
+_BETA_CONDUCTION_COLUMNS = (4, 12)
+_BETA_STIMULUS_COLUMNS = 2
+_BETA_STIMULUS_ROWS = 5
 
 
 def hipsc_sheet(
@@ -179,16 +240,14 @@ def hipsc_stimulus_amplitude(nx: int = 40, ny: int = 40) -> npt.NDArray[np.float
     >>> int((amplitude > 0).sum())
     22
     """
-    amplitude = np.zeros((ny, nx), dtype=np.float64)
-    centre = _measurement_row(ny)
-    first = max(0, centre - _STIMULUS_ROWS // 2)
-    last = min(ny, first + _STIMULUS_ROWS)
-    amplitude[first:last, :_STIMULUS_COLUMNS] = STIMULUS_AMPLITUDE
-    if not amplitude.any():
-        raise ValueError(
-            f"a {nx} by {ny} sheet leaves the stimulated region without at least one cell in it"
-        )
-    return amplitude.reshape(-1)
+    return _stimulated_region(
+        nx,
+        ny,
+        columns=_STIMULUS_COLUMNS,
+        rows=_STIMULUS_ROWS,
+        stimulated=STIMULUS_AMPLITUDE,
+        elsewhere=0.0,
+    )
 
 
 def hipsc_conduction_path(nx: int = 40, ny: int = 40, *, alpha: Any = 1.0) -> ConductionPath:
@@ -225,15 +284,7 @@ def hipsc_conduction_path(nx: int = 40, ny: int = 40, *, alpha: Any = 1.0) -> Co
     (769, 794)
     """
     lx, _ = hipsc_cell_size(alpha)
-    first, last = _CONDUCTION_COLUMNS
-    if nx <= last:
-        raise ValueError(
-            f"measuring between columns {first} and {last} needs a sheet at least {last + 1} "
-            f"cells wide, but this one is {nx}. Build a `ConductionPath` directly for a sheet "
-            f"of another size."
-        )
-    row = _measurement_row(ny) * nx
-    return ConductionPath(start=row + first, end=row + last, distance=(last - first) * lx)
+    return _conduction_path(nx, ny, columns=_CONDUCTION_COLUMNS, lx=lx)
 
 
 def hipsc_centre_cell(nx: int = 40, ny: int = 40) -> int:
@@ -258,7 +309,7 @@ def hipsc_centre_cell(nx: int = 40, ny: int = 40) -> int:
     >>> presets.hipsc_centre_cell(40, 40)
     780
     """
-    return _measurement_row(ny) * nx + nx // 2
+    return _centre_cell(nx, ny)
 
 
 def vary_conductances(network: CellNetwork, gamma: Any, draws: npt.ArrayLike) -> Any:
@@ -381,5 +432,251 @@ def hipsc_cell_size(alpha: Any = 1.0) -> tuple[Any, Any]:
 
 
 def _measurement_row(ny: int) -> int:
-    """The row of the sheet the reference measures along, just below the middle."""
-    return round(ny / 2) - 1
+    """The row of the sheet the reference measures along, just below the middle.
+
+    The C writes `round(num_cells_y/2) - 1`, where both operands are ints, so the division
+    truncates before `round` ever sees it: at ``ny = 15`` it is 6, not 7. Reading that
+    expression as floating point agrees at every even `ny` and is one row out at every odd one.
+    """
+    return ny // 2 - 1
+
+
+def _centre_cell(nx: int, ny: int) -> int:
+    """The cell whose trace the reference saves every step. One formula for both setups."""
+    return _measurement_row(ny) * nx + nx // 2
+
+
+def _stimulated_region(
+    nx: int, ny: int, *, columns: int, rows: int, stimulated: float, elsewhere: float
+) -> npt.NDArray[np.float64]:
+    """A per-cell parameter array: `stimulated` over the region, `elsewhere` outside it.
+
+    The region is the leftmost `columns` columns over a block of `rows` rows **centred in the
+    sheet**, with an uneven remainder going to the lower rows. That reproduces both of the
+    reference's windows, which are written in cell widths with a node at each cell centre:
+    ``14*ly < y < 25*ly`` is rows 14 to 24 of 40, and ``5*ly < y < 10*ly`` is rows 5 to 9 of 15.
+
+    Centred in the sheet is not the same as centred on the row a velocity is measured along.
+    They coincide on the cardiac sheet and differ by one row on the beta sheet, so deriving
+    this from `_measurement_row` would move the beta stimulus off the reference's cells.
+
+    Written as ``first + rows`` rather than ``centre +/- rows // 2``, which silently rounds an
+    even row count up to the next odd one.
+    """
+    values = np.full((ny, nx), float(elsewhere), dtype=np.float64)
+    first = max(0, (ny - rows) // 2)
+    last = min(ny, first + rows)
+    values[first:last, :columns] = stimulated
+    if not (values == stimulated).any():
+        raise ValueError(
+            f"a {nx} by {ny} sheet leaves the stimulated region without at least one cell in it"
+        )
+    return values.reshape(-1)
+
+
+def _conduction_path(nx: int, ny: int, *, columns: tuple[int, int], lx: Any) -> ConductionPath:
+    """The two cells a velocity is measured between, and the distance along the row."""
+    first, last = columns
+    if nx <= last:
+        raise ValueError(
+            f"measuring between columns {first} and {last} needs a sheet at least {last + 1} "
+            f"cells wide, but this one is {nx}. Build a `ConductionPath` directly for a sheet "
+            f"of another size."
+        )
+    row = _measurement_row(ny) * nx
+    return ConductionPath(start=row + first, end=row + last, distance=(last - first) * lx)
+
+
+def beta_sheet(
+    nx: int = 15,
+    ny: int = 15,
+    *,
+    delta_e: Any = BETA_DELTA_E,
+    Gg: Any = BETA_GAP_JUNCTION_CONDUCTANCE,
+) -> CellNetwork:
+    """Build the paper's sheet of pancreatic beta cells.
+
+    Differs from `hipsc_sheet` in more than its constants. There is no anisotropy factor -- a
+    beta cell is a cube of side `BETA_CELL_SIZE` -- and the third dimension is **fixed** at that
+    side rather than derived from `delta_e`, so raising the extracellular volume fraction
+    changes the extracellular conductance without changing the cell.
+
+    Parameters
+    ----------
+    nx, ny : int, optional
+        Number of cells along x and along y, by default 15 each, the paper's sheet.
+    delta_e : float, optional
+        Extracellular volume fraction, by default 0.5. Dimensionless, so a bare number. It sets
+        the extracellular conductance only; the cell's dimensions do not depend on it.
+    Gg : pint.Quantity, optional
+        Gap junction conductance of each connection, by default
+        `BETA_GAP_JUNCTION_CONDUCTANCE`.
+
+    Returns
+    -------
+    CellNetwork
+        A sheet of ``nx * ny`` cells, each connected to its four neighbours, numbered row-major.
+        Its specific capacitance is `BETA_CM`, so that it pairs with `beta_membrane_model`.
+
+    Raises
+    ------
+    TypeError
+        If `Gg` is a bare number rather than a quantity.
+    pint.DimensionalityError
+        If `delta_e` carries a unit, or `Gg` is not a conductance.
+    ValueError
+        If `delta_e` is not a single number, or if `nx` or `ny` is less than one.
+
+    Examples
+    --------
+    >>> from sknm import presets
+    >>> network = presets.beta_sheet(15, 15)
+    >>> network.n_cells
+    225
+    >>> round(network.lam)
+    65005
+    """
+    fraction = units.as_number(delta_e, name="delta_e")
+    if np.ndim(fraction) != 0:
+        raise ValueError(
+            f"delta_e must be a single number here; got an array of shape "
+            f"{np.shape(fraction)}. Build the sheet with `sknm.sheet` to give each cell its "
+            f"own volume fraction."
+        )
+    return sheet(
+        nx,
+        ny,
+        lx=BETA_CELL_SIZE,
+        ly=BETA_CELL_SIZE,
+        lz=BETA_CELL_SIZE,
+        delta_e=fraction,
+        sigma_i=SIGMA_I,
+        sigma_e=SIGMA_E,
+        Gg=Gg,
+        membrane_area=BETA_MEMBRANE_AREA,
+        Cm=BETA_CM,
+    )
+
+
+def beta_membrane_model() -> MembraneModel:
+    """The phantom bursting beta cell model, with the capacitance its voltage equation uses.
+
+    `sknm.membrane.PBM` names its membrane potential ``v`` rather than ``V_m`` and integrates
+    ``dv/dt = -I / Cm``, so both have to be bound when it is wrapped. Declaring the capacitance
+    is what lets `sknm.Simulation` check the network against it, and is why `beta_sheet` derives
+    `BETA_CM` instead of rounding it.
+
+    Returns
+    -------
+    MembraneModel
+        Ready to pair with `beta_sheet`.
+
+    Examples
+    --------
+    >>> from sknm import presets
+    >>> model = presets.beta_membrane_model()
+    >>> model.num_states, model.v_name
+    (5, 'v')
+    """
+    return from_gotranx(PBM, v_name="v", capacitance=BETA_CAPACITANCE)
+
+
+def beta_stimulus_conductance(nx: int = 15, ny: int = 15) -> npt.NDArray[np.float64]:
+    """The K-ATP conductance of every cell of the sheet, for `Simulation.set_parameter`.
+
+    The beta stimulus is not an injected current: it is the K-ATP conductance **halved** on a
+    region of cells, which depolarizes them enough to start a wave. So unlike
+    `hipsc_stimulus_amplitude`, the value outside the region is the membrane model's own
+    default rather than zero -- but this still returns the whole array, because
+    `set_parameter` writes what it is given.
+
+    The region is the reference's: the two leftmost columns over five rows centred on the row a
+    conduction velocity is measured along. On a sheet too small to hold it, it is clipped.
+
+    Parameters
+    ----------
+    nx, ny : int, optional
+        Shape of the sheet, by default 15 by 15.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(nx * ny,)``, in the membrane model's own convention, so carrying no unit.
+
+    Raises
+    ------
+    ValueError
+        If the region would not cover a single cell.
+
+    Examples
+    --------
+    >>> from sknm import presets
+    >>> conductance = presets.beta_stimulus_conductance(15, 15)
+    >>> int((conductance == presets.BETA_STIMULUS_KATP_CONDUCTANCE).sum())
+    10
+    """
+    return _stimulated_region(
+        nx,
+        ny,
+        columns=_BETA_STIMULUS_COLUMNS,
+        rows=_BETA_STIMULUS_ROWS,
+        stimulated=BETA_STIMULUS_KATP_CONDUCTANCE,
+        elsewhere=BETA_KATP_CONDUCTANCE,
+    )
+
+
+def beta_conduction_path(nx: int = 15, ny: int = 15) -> ConductionPath:
+    """The two cells the paper measures a beta conduction velocity between, and their gap.
+
+    Cells at columns 4 and 12 of the row halfway up the sheet, eight cell lengths apart. There
+    is no anisotropy factor to pass: a beta cell has one size.
+
+    Parameters
+    ----------
+    nx, ny : int, optional
+        Shape of the sheet, by default 15 by 15.
+
+    Returns
+    -------
+    ConductionPath
+        Ready for `sknm.analysis.conduction_velocity`.
+
+    Raises
+    ------
+    ValueError
+        If the sheet is too narrow to hold both cells.
+
+    Examples
+    --------
+    >>> from sknm import presets
+    >>> path = presets.beta_conduction_path(15, 15)
+    >>> path.start, path.end
+    (94, 102)
+    """
+    return _conduction_path(nx, ny, columns=_BETA_CONDUCTION_COLUMNS, lx=BETA_CELL_SIZE)
+
+
+def beta_centre_cell(nx: int = 15, ny: int = 15) -> int:
+    """The beta cell at the centre of the sheet, whose trace the reference saves every step.
+
+    The same cell as `hipsc_centre_cell` would give for a sheet of the same shape: both
+    reference drivers compute it with the same expression, so this is one formula wearing two
+    names rather than two conventions.
+
+    Parameters
+    ----------
+    nx, ny : int, optional
+        Shape of the sheet, by default 15 by 15.
+
+    Returns
+    -------
+    int
+        Index of the cell.
+
+    Examples
+    --------
+    >>> from sknm import presets
+    >>> presets.beta_centre_cell(15, 15)
+    97
+    """
+    return _centre_cell(nx, ny)

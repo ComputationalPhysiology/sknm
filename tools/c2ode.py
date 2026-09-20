@@ -1,43 +1,63 @@
-"""Transcribe gotran-generated C++ (base_model_IM.h) back into a gotranx .ode file.
+"""Transcribe gotran-generated C++ headers back into gotranx .ode files.
 
 Strategy: C expression -> valid Python expression text -> ast.parse -> AST
 transform (IfExp->Conditional, Compare->Lt/Le/.., BoolOp->And/Or, pow->**)
 -> ast.unparse.  Python's own parser handles precedence, so we never have to
 reason about it by hand.
+
+Usage:
+
+    python3 tools/c2ode.py base_model_IM        # -> base_model_IM.ode
+    python3 tools/c2ode.py PBM                  # -> PBM.ode
+    python3 tools/c2ode.py --all
+
+The headers are all gotran output, so one parser covers them: the only per-model
+information is the citation written into the .ode as a comment.  Check the result
+with `tools/validate_<model>.py`, which compares `rhs` against the compiled C
+elementwise -- reading the transcription is not a check.
 """
 
+import argparse
 import ast
 import re
 from collections import OrderedDict
+from pathlib import Path
 
-SRC = "/home/shared/references/SKNM_code/base_model_IM.h"
-OUT = "/home/shared/base_model_IM.ode"
+ROOT = Path(__file__).resolve().parents[1]
+REFERENCE = ROOT / "references" / "SKNM_code"
 
-src = open(SRC).read()
+#: Per-model provenance, written into the .ode header. Keyed by the header's stem, which is
+#: also the .ode's stem and the generated module's name.
+MODELS = {
+    "base_model_IM": [
+        "Immature wild-type hiPSC-CM base model, Jaeger, Wall & Tveito,",
+        "PLoS Comput Biol 17(2):e1008089 (2021).  Parameterisation as used by",
+        "Jaeger & Tveito, Sci Rep 13:16434 (2023).",
+    ],
+    "PBM": [
+        "Phantom bursting model of the pancreatic beta cell, Bertram & Sherman,",
+        "Bull Math Biol 66:1313-1344 (2004).  Parameterisation as used by",
+        "Jaeger & Tveito, Sci Rep 13:16434 (2023).",
+    ],
+}
+
+parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+parser.add_argument("model", nargs="?", choices=sorted(MODELS), help="which header to transcribe")
+parser.add_argument("--all", action="store_true", help="transcribe every known model")
+args = parser.parse_args()
+if not args.all and args.model is None:
+    parser.error("give a model name or --all")
+targets = sorted(MODELS) if args.all else [args.model]
 
 
 # ---------------------------------------------------------------- init values
-def init_values(fn):
+def init_values(src, fn):
     """{name: literal} in declaration (index) order from an init_*_values fn."""
     body = src.split("void " + fn + "(")[1].split("\n}")[0]
     out = OrderedDict()
     for m in re.finditer(r"\[(\d+)\]\s*=\s*([^;]+);\s*//\s*(\w+);", body):
         out[m.group(3)] = (int(m.group(1)), m.group(2).strip())
     return out
-
-
-states_init = init_values("init_state_values")
-params_init = init_values("init_parameters_values")
-state_by_idx = {i: n for n, (i, _) in states_init.items()}
-
-# ------------------------------------------------------------------ rhs body
-rhs_body = src.split(
-    "void rhs(const double* states, const double t, const double* parameters,\n  double* values)\n{"
-)[1].split("\n}")[0]
-
-# Drop the "Assign states"/"Assign parameters" preamble.
-rhs_body = rhs_body.split("// Expressions for the", 1)
-rhs_body = "// Expressions for the" + rhs_body[1]
 
 
 # ------------------------------------------------- C expression -> Python text
@@ -182,51 +202,6 @@ def convert(cexpr):
     return ast.unparse(tree)
 
 
-# ------------------------------------------------------------- walk rhs body
-components = OrderedDict()  # name -> [(lhs, rhs_ode), ...]
-used_in = OrderedDict()  # symbol -> first component that references it
-current = None
-
-for chunk in rhs_body.split(";"):
-    chunk = chunk.strip()
-    if not chunk:
-        continue
-    for m in re.finditer(r"// Expressions for the (.+?) component", chunk):
-        current = m.group(1)
-        components.setdefault(current, [])
-    stmt = re.sub(r"//.*", "", chunk).strip()
-    stmt = " ".join(stmt.split())
-    if not stmt:
-        continue
-    lhs, _, rhs = stmt.partition("=")
-    lhs = lhs.strip()
-    m = re.match(r"values\[(\d+)\]$", lhs)
-    if m:
-        target = "d%s_dt" % state_by_idx[int(m.group(1))]
-    else:
-        m2 = re.match(r"const double (\w+)$", lhs)
-        if not m2:
-            raise SystemExit("unparsed statement: %r" % stmt)
-        target = m2.group(1)
-    expr = convert(rhs.strip())
-    components[current].append((target, expr))
-    for sym in set(re.findall(r"\b[A-Za-z_]\w*\b", expr)):
-        used_in.setdefault(sym, current)
-
-# ------------------------------------------------------- group states/params
-state_component = {}
-for comp, assigns in components.items():
-    for lhs, _ in assigns:
-        if lhs.startswith("d") and lhs.endswith("_dt"):
-            state_component.setdefault(lhs[1:-3], comp)
-
-param_component = OrderedDict()
-for p in params_init:
-    param_component[p] = used_in.get(p, "Misc")
-
-unused = [p for p in params_init if p not in used_in]
-
-
 # ------------------------------------------------------------------- emit
 def block(kind, comp, entries):
     lines = ['%s("%s",' % (kind, comp)]
@@ -238,42 +213,100 @@ def block(kind, comp, entries):
     return "\n".join(lines)
 
 
-out = [
-    "# Transcribed from references/SKNM_code/base_model_IM.h (gotran-generated C++)",
-    "# Immature wild-type hiPSC-CM base model, Jaeger, Wall & Tveito,",
-    "# PLoS Comput Biol 17(2):e1008089 (2021).  Parameterisation as used by",
-    "# Jaeger & Tveito, Sci Rep 13:16434 (2023).",
-    "# Generated by scratchpad/c2ode.py -- do not edit by hand.",
-    "",
-]
+def transcribe(model):
+    """Write <model>.ode from references/SKNM_code/<model>.h, and report what it found."""
+    header = REFERENCE / f"{model}.h"
+    src = header.read_text()
 
-order = list(components)
-for comp in order:
-    ps = [(p, params_init[p][1]) for p in params_init if param_component[p] == comp]
-    if ps:
-        out += [block("parameters", comp, ps), ""]
-if unused:
-    out += [
-        block("parameters", "Misc", [(p, params_init[p][1]) for p in unused]),
+    states_init = init_values(src, "init_state_values")
+    params_init = init_values(src, "init_parameters_values")
+    state_by_idx = {i: n for n, (i, _) in states_init.items()}
+
+    rhs_body = src.split(
+        "void rhs(const double* states, const double t, const double* parameters,\n"
+        "  double* values)\n{"
+    )[1].split("\n}")[0]
+    # Drop the "Assign states"/"Assign parameters" preamble.
+    rhs_body = "// Expressions for the" + rhs_body.split("// Expressions for the", 1)[1]
+
+    components = OrderedDict()  # name -> [(lhs, rhs_ode), ...]
+    used_in = OrderedDict()  # symbol -> first component that references it
+    current = None
+
+    for chunk in rhs_body.split(";"):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        for m in re.finditer(r"// Expressions for the (.+?) component", chunk):
+            current = m.group(1)
+            components.setdefault(current, [])
+        stmt = re.sub(r"//.*", "", chunk).strip()
+        stmt = " ".join(stmt.split())
+        if not stmt:
+            continue
+        lhs, _, rhs = stmt.partition("=")
+        lhs = lhs.strip()
+        m = re.match(r"values\[(\d+)\]$", lhs)
+        if m:
+            target = "d%s_dt" % state_by_idx[int(m.group(1))]
+        else:
+            m2 = re.match(r"const double (\w+)$", lhs)
+            if not m2:
+                raise SystemExit("unparsed statement: %r" % stmt)
+            target = m2.group(1)
+        expr = convert(rhs.strip())
+        components[current].append((target, expr))
+        for sym in set(re.findall(r"\b[A-Za-z_]\w*\b", expr)):
+            used_in.setdefault(sym, current)
+
+    state_component = {}
+    for comp, assigns in components.items():
+        for lhs, _ in assigns:
+            if lhs.startswith("d") and lhs.endswith("_dt"):
+                state_component.setdefault(lhs[1:-3], comp)
+
+    param_component = OrderedDict()
+    for p in params_init:
+        param_component[p] = used_in.get(p, "Misc")
+    unused = [p for p in params_init if p not in used_in]
+
+    out = [
+        "# Transcribed from references/SKNM_code/%s.h (gotran-generated C++)" % model,
+        *["# " + line for line in MODELS[model]],
+        "# Generated by tools/c2ode.py -- do not edit by hand.",
         "",
     ]
 
-for comp in order:
-    ss = [(s, states_init[s][1]) for s in states_init if state_component.get(s) == comp]
-    if ss:
-        out += [block("states", comp, ss), ""]
+    order = list(components)
+    for comp in order:
+        ps = [(p, params_init[p][1]) for p in params_init if param_component[p] == comp]
+        if ps:
+            out += [block("parameters", comp, ps), ""]
+    if unused:
+        out += [block("parameters", "Misc", [(p, params_init[p][1]) for p in unused]), ""]
 
-for comp in order:
-    out.append('expressions("%s")' % comp)
-    for lhs, expr in components[comp]:
-        out.append("%s = %s" % (lhs, expr))
-    out.append("")
+    for comp in order:
+        ss = [(s, states_init[s][1]) for s in states_init if state_component.get(s) == comp]
+        if ss:
+            out += [block("states", comp, ss), ""]
 
-open(OUT, "w").write("\n".join(out) + "\n")
+    for comp in order:
+        out.append('expressions("%s")' % comp)
+        for lhs, expr in components[comp]:
+            out.append("%s = %s" % (lhs, expr))
+        out.append("")
 
-n_expr = sum(len(v) for v in components.values())
-print("components      :", len(components))
-print("states          :", len(states_init), "grouped:", len(state_component))
-print("parameters      :", len(params_init), "unused in rhs:", unused)
-print("assignments     :", n_expr)
-print("wrote", OUT)
+    destination = ROOT / f"{model}.ode"
+    destination.write_text("\n".join(out) + "\n")
+
+    n_expr = sum(len(v) for v in components.values())
+    print(model)
+    print("  components    :", len(components))
+    print("  states        :", len(states_init), "grouped:", len(state_component))
+    print("  parameters    :", len(params_init), "unused in rhs:", unused)
+    print("  assignments   :", n_expr)
+    print("  wrote        ", destination.relative_to(ROOT))
+
+
+for name in targets:
+    transcribe(name)

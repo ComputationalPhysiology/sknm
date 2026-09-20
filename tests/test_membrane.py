@@ -5,15 +5,22 @@ added to `MODELS` to inherit the whole contract.
 """
 
 import numpy as np
+import pint
 import pytest
 
-from sknm.membrane import MembraneModel, base_model_IM, fitzhugh_nagumo, from_gotranx
+from sknm.membrane import PBM, MembraneModel, base_model_IM, fitzhugh_nagumo, from_gotranx
+from sknm.units import cm, fF, uF
 
 MODELS = pytest.mark.parametrize(
     ("make_model", "stimulus_parameter"),
     [
         pytest.param(lambda: from_gotranx(base_model_IM), "stim_amplitude", id="base_model_IM"),
         pytest.param(fitzhugh_nagumo, "stim_amplitude", id="fitzhugh_nagumo"),
+        pytest.param(
+            lambda: from_gotranx(PBM, v_name="v", capacitance=5300 * fF),
+            "gkatpbar",
+            id="PBM",
+        ),
     ],
 )
 
@@ -96,6 +103,38 @@ def test_base_model_IM_declares_no_capacitance():
     equation, so there is no capacitance to declare and no mismatch a caller could check.
     """
     assert from_gotranx(base_model_IM).capacitance is None
+
+
+def test_a_declared_capacitance_is_stored_in_the_base_unit():
+    """Absolute, in uF, whatever unit it was given in."""
+    model = from_gotranx(PBM, v_name="v", capacitance=5300 * fF)
+
+    assert model.capacitance == pytest.approx(5.3e-6)
+
+
+def test_a_declared_capacitance_must_carry_a_unit():
+    """A bare 5300 would be read as 5300 uF, nine orders of magnitude out."""
+    with pytest.raises(TypeError, match="capacitance"):
+        from_gotranx(PBM, v_name="v", capacitance=5300)
+
+
+def test_a_declared_capacitance_must_be_a_capacitance():
+    """A specific capacitance is the plausible wrong answer here, and it is refused."""
+    with pytest.raises(pint.DimensionalityError):
+        from_gotranx(PBM, v_name="v", capacitance=1.0 * uF / cm**2)
+
+
+def test_PBM_declares_the_capacitance_its_voltage_equation_divides_by():
+    """Unlike `base_model_IM`, PBM's `Cm` is in `dv/dt`, so it is checkable.
+
+    The value has to be the model's own parameter rather than a constant written out beside
+    it: the whole point of declaring it is that the network is checked against what the
+    membrane model actually integrates.
+    """
+    model = from_gotranx(PBM, v_name="v", capacitance=5300 * fF)
+    declared_in_the_model = PBM.init_parameter_values()[PBM.parameter_index("Cm")]
+
+    assert model.capacitance == pytest.approx(declared_in_the_model * 1e-9)
 
 
 def test_generated_module_imports_only_numpy():

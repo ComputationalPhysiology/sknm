@@ -24,6 +24,8 @@ DT = 0.02 * ms
 #: A step the ramp tests can land on exactly: 0.25 and the rates below are binary-exact,
 #: so an activation time is the closed form and not the closed form plus a rounding drift.
 RAMP_DT = 0.25 * ms
+#: The threshold the ramp fixtures are built around. There is no default to fall back on.
+THRESHOLD = -20 * mV
 
 
 def geometry():
@@ -179,10 +181,24 @@ def test_the_threshold_is_the_one_the_recorder_was_given(strand):
     np.testing.assert_allclose(recorder.activation_time, 5.25)
 
 
-def test_the_threshold_defaults_to_the_reference_value(strand):
+def test_a_threshold_is_required(strand):
+    """No default, deliberately.
+
+    A threshold that suits one membrane model can be catastrophic for another: the beta cell
+    action potential peaks near -20 mV, so the cardiac threshold leaves all but one of its
+    cells unactivated. A default is a value a caller can fall into without choosing it.
+    """
     sim = ramp_simulation(strand, rates=[10.0, 10.0, 10.0])
 
-    assert ActivationRecorder(sim).threshold == pytest.approx(-20.0)
+    with pytest.raises(TypeError):
+        ActivationRecorder(sim)
+
+
+def test_the_module_offers_no_default_threshold():
+    """Removed rather than left importable, so that a caller reaching for one has to look."""
+    import sknm.analysis
+
+    assert not hasattr(sknm.analysis, "DEFAULT_THRESHOLD")
 
 
 def test_the_threshold_must_be_a_potential(strand):
@@ -216,7 +232,7 @@ def test_a_cell_exactly_at_the_threshold_has_reached_it(strand):
 
 def test_the_upstroke_velocity_is_the_greatest_rate_of_rise(strand):
     sim = ramp_simulation(strand, rates=[10.0, 20.0, 30.0])
-    recorder = ActivationRecorder(sim)
+    recorder = ActivationRecorder(sim, threshold=THRESHOLD)
 
     sim.run(10 * ms, record=(), callback=recorder)
 
@@ -239,7 +255,7 @@ def test_the_upstroke_velocity_is_a_centred_difference(strand):
     sim = Simulation(
         uncoupled(strand), Jump(rates=[0.0, 0.0, 0.0]), dt=RAMP_DT, variant=Variant.SKNM_UE0
     )
-    recorder = ActivationRecorder(sim)
+    recorder = ActivationRecorder(sim, threshold=THRESHOLD)
 
     sim.run(10 * RAMP_DT, record=(), callback=recorder)
 
@@ -249,7 +265,7 @@ def test_the_upstroke_velocity_is_a_centred_difference(strand):
 
 def test_nothing_is_recorded_before_the_first_step(strand):
     sim = ramp_simulation(strand, rates=[10.0, 10.0, 10.0])
-    recorder = ActivationRecorder(sim)
+    recorder = ActivationRecorder(sim, threshold=THRESHOLD)
 
     assert np.isnan(recorder.activation_time).all()
     assert np.isnan(recorder.max_upstroke_velocity).all()
@@ -257,7 +273,7 @@ def test_nothing_is_recorded_before_the_first_step(strand):
 
 def test_the_recorded_arrays_are_read_only(strand):
     sim = ramp_simulation(strand, rates=[10.0, 10.0, 10.0])
-    recorder = ActivationRecorder(sim)
+    recorder = ActivationRecorder(sim, threshold=THRESHOLD)
 
     with pytest.raises(ValueError, match="read-only"):
         recorder.activation_time[0] = 1.0
@@ -312,7 +328,7 @@ def test_a_stopping_cell_that_does_not_exist_is_refused(strand):
     sim = ramp_simulation(strand, rates=[10.0, 10.0, 10.0])
 
     with pytest.raises(IndexError, match="stop_when_activated"):
-        ActivationRecorder(sim, stop_when_activated=7)
+        ActivationRecorder(sim, threshold=THRESHOLD, stop_when_activated=7)
 
 
 # --- Conduction velocity --------------------------------------------------------------------

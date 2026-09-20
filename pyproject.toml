@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "sknm"
 version = "0.1.0.dev0"
-description = "The Simplified Kirchhoff Network Model for cell-based cardiac electrophysiology"
+description = "The Simplified Kirchhoff Network Model for cell-based cardiac and islet electrophysiology"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -14,6 +14,7 @@ authors = [{ name = "Henrik Finsberg", email = "henriknf@simula.no" }]
 keywords = [
     "electrophysiology",
     "cardiac",
+    "pancreatic-beta-cell",
     "gap-junction",
     "kirchhoff-network-model",
     "computational-biology",
@@ -85,9 +86,9 @@ follow_imports = "skip"
 follow_imports_for_stubs = true
 
 [[tool.mypy.overrides]]
-# gotranx emits unannotated defs, and this file is generated rather than hand-edited. Only
+# gotranx emits unannotated defs, and these files are generated rather than hand-edited. Only
 # that one rule is relaxed; check_untyped_defs keeps the bodies type-checked.
-module = "sknm.membrane.base_model_IM"
+module = ["sknm.membrane.base_model_IM", "sknm.membrane.PBM"]
 disallow_untyped_defs = false
 check_untyped_defs = true
 
