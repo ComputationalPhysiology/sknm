@@ -121,6 +121,8 @@ def test_setups_differing_in_any_one_field_get_different_labels():
         "nx": 36,
         "ny": 20,
         "dt": 0.1,
+        "t_end": 80.0,
+        "threshold": -30.0,
         "seed": 1,
     }
     assert set(changed) == set(base.__dataclass_fields__)
@@ -218,13 +220,18 @@ def test_a_disabled_cache_ignores_what_is_already_stored(tmp_path):
 
 
 def test_results_written_for_other_invariants_are_discarded(tmp_path):
-    """The run length and threshold are not in a label, so they invalidate the file instead."""
+    """The cache format and the library version are not in a label, so they discard the file.
+
+    The run length and the threshold used to be here too. They are fields of a setup now, so
+    they invalidate a single label rather than the whole file -- which they have to be, since
+    the cardiac and beta scripts do not share either of them.
+    """
     cache = common.ResultCache("sweep", directory=tmp_path)
     cache.compute("a", lambda: 1.0)
     with np.load(cache.path) as stored:
         spec = json.loads(str(stored["spec"].item()))
         labels, values = stored["labels"], stored["values"]
-    spec["threshold"] = spec["threshold"] + 1.0
+    spec["sknm"] = spec["sknm"] + ".1"
     np.savez(
         cache.path, spec=np.array(json.dumps(spec, sort_keys=True)), labels=labels, values=values
     )
@@ -358,5 +365,199 @@ def test_a_measured_velocity_needs_the_wave_to_reach_the_far_end():
     assert 1.0 < velocity < 20.0
 
 
+def test_a_measurement_uses_the_setup_s_threshold_and_not_a_module_constant():
+    """The seam the two setups exist for.
+
+    A beta setup carries -50 mV and a thousand-millisecond run, and reading either from a
+    module constant would silently measure it at the cardiac -20 mV over 50 ms. Pinned on a
+    cardiac sheet, where the same substitution is invisible because the two agree, by moving
+    the threshold away from the constant and demanding the answer move with it.
+    """
+    small = {"nx": 36, "ny": 8}
+    at_default = common.measure_conduction_velocity(common.Setup(**small), Variant.SKNM)
+    raised = common.measure_conduction_velocity(common.Setup(**small, threshold=10.0), Variant.SKNM)
+
+    assert raised != pytest.approx(at_default)
+
+
+def test_a_measurement_stops_at_the_setup_s_run_length_and_not_a_module_constant():
+    """The companion to the test above, for the other constant a setup carries.
+
+    A run too short for the wave to arrive has no velocity to report, and `conduction_velocity`
+    raises rather than returning `nan`. Reading the run length from the module would let this
+    one finish.
+    """
+    with pytest.raises(ValueError, match="did not reach the threshold"):
+        common.measure_conduction_velocity(common.Setup(nx=36, ny=8, t_end=1.0), Variant.SKNM)
+
+
 def _refuse():
     raise AssertionError("this value should have come from the cache")
+
+
+# --------------------------------------------------------------------------------------
+# the beta setup
+#
+# The same shape of assertion as the cardiac setup above, and for the same reason. The beta
+# sheet is square too, so every axis-swapping mistake is invisible on it; these use a sheet
+# wider than it is tall. The two setups are also checked against each other, because the
+# failure mode a sibling dataclass introduces is one of them quietly building the other's.
+# --------------------------------------------------------------------------------------
+
+#: A seed is required off the paper's square sheet: the committed draws describe only it.
+BETA_WIDE = {"nx": 20, "ny": 8, "seed": 0}
+
+
+def test_the_beta_setup_builds_a_beta_sheet_and_not_a_cardiac_one():
+    """The cell type has to reach the network, or the beta figures plot the cardiac model."""
+    from sknm import presets
+
+    network = common.BetaSetup().network()
+
+    assert network.n_cells == 225
+    np.testing.assert_allclose(network.membrane_area, presets.BETA_MEMBRANE_AREA.m_as("cm ** 2"))
+    assert network.Cm == pytest.approx(presets.BETA_CM.m_as("uF / cm ** 2"))
+    assert network.lam > 1e4
+
+
+def test_the_beta_setup_runs_the_beta_membrane_model():
+    simulation = common.BetaSetup(**BETA_WIDE).simulation(Variant.SKNM)
+
+    assert simulation.model.num_states == 5
+    assert simulation.model.v_name == "v"
+
+
+def test_the_beta_setup_carries_its_own_threshold_and_run_length():
+    """The two constants that are catastrophic if they come from the cardiac setup."""
+    beta = common.BetaSetup()
+    cardiac = common.Setup()
+
+    assert beta.threshold == pytest.approx(-50.0)
+    assert beta.t_end == pytest.approx(1000.0)
+    assert cardiac.threshold == pytest.approx(-20.0)
+    assert cardiac.t_end == pytest.approx(50.0)
+
+
+def test_the_beta_label_names_every_field_of_the_setup():
+    setup = common.BetaSetup()
+    label = setup.label()
+    for field in setup.__dataclass_fields__:
+        assert f"{field}=" in label
+
+
+def test_beta_setups_differing_in_any_one_field_get_different_labels():
+    import dataclasses
+
+    base = common.BetaSetup()
+    changed = {
+        "delta_e": 0.02,
+        "gamma": 1.0,
+        "nx": 20,
+        "ny": 8,
+        "dt": 0.1,
+        "t_end": 500.0,
+        "threshold": -40.0,
+        "seed": 3,
+    }
+    assert set(changed) == set(base.__dataclass_fields__)
+    for field, value in changed.items():
+        assert dataclasses.replace(base, **{field: value}).label() != base.label()
+
+
+def test_the_two_setups_do_not_share_a_cache_key():
+    """They carry different fields, so a label cannot mean both -- but check it, because a
+    collision would serve a cardiac velocity under a beta label without any other symptom."""
+    assert common.Setup().label() != common.BetaSetup().label()
+
+
+def test_the_beta_setup_solves_the_variant_it_was_given():
+    for variant in Variant:
+        assert common.BetaSetup(**BETA_WIDE).simulation(variant).variant is variant
+
+
+def test_the_beta_setup_steps_at_its_own_time_step():
+    setup = common.BetaSetup(**BETA_WIDE, dt=0.005)
+    assert setup.simulation(Variant.SKNM).dt == pytest.approx(0.005)
+
+
+def test_the_beta_setup_lays_the_sheet_out_wide_rather_than_tall():
+    network = common.BetaSetup(**BETA_WIDE).network()
+
+    assert network.n_cells == 20 * 8
+    assert network.connections[0].tolist() == [0, 1]
+    along_x = sum(1 for first, second in network.connections if second - first == 1)
+    assert along_x == 19 * 8
+
+
+def test_the_beta_conduction_path_runs_along_the_wide_axis():
+    """Columns 4 and 12 of the row halfway up an 8-row sheet, which is row 3."""
+    path = common.BetaSetup(**BETA_WIDE).conduction_path()
+    assert (path.start, path.end) == (3 * 20 + 4, 3 * 20 + 12)
+
+
+def test_the_beta_stimulus_sits_on_the_left_edge_of_the_wide_sheet():
+    from sknm import presets
+
+    simulation = common.BetaSetup(**BETA_WIDE).simulation(Variant.SKNM)
+    index = simulation.model.parameter_index("gkatpbar")
+    values = simulation.parameters[index]
+    stimulated = np.flatnonzero(values == presets.BETA_STIMULUS_KATP_CONDUCTANCE)
+    expected = np.flatnonzero(
+        presets.beta_stimulus_conductance(20, 8) == presets.BETA_STIMULUS_KATP_CONDUCTANCE
+    )
+
+    np.testing.assert_array_equal(stimulated, expected)
+    # Two leftmost columns of five rows, not two topmost rows of five columns.
+    assert set((stimulated % 20).tolist()) == {0, 1}
+    # And the unstimulated cells keep the model's own default rather than being zeroed.
+    assert np.all(values[values != presets.BETA_STIMULUS_KATP_CONDUCTANCE] == 500.0)
+
+
+def test_the_beta_setup_spreads_the_conductances_only_when_gamma_is_positive():
+    uniform = common.BetaSetup().network()
+    spread = common.BetaSetup(gamma=1.0).network()
+
+    np.testing.assert_allclose(uniform.Gg, uniform.Gg[0])
+    assert spread.Gg.std() > 0.0
+
+
+def test_the_beta_draws_are_the_reference_s_and_there_is_one_per_connection():
+    draws = common.beta_draws()
+
+    assert draws.shape == (common.BetaSetup().network().n_connections,)
+    assert 0.0 <= draws.min() and draws.max() <= 1.0
+    # The first value of the reference's own gj_scale_15x15_x.txt, and the last of its _y.txt.
+    assert draws[0] == pytest.approx(0.297354)
+    assert draws[-1] == pytest.approx(0.120178)
+
+
+def test_a_beta_sheet_of_another_shape_is_refused_rather_than_silently_reseeded():
+    """The draws are a fixed 420 numbers, so they only describe one sheet.
+
+    Refused rather than quietly seeded, because the figures depend on getting the reference's
+    own draws and a silent fallback would hand them someone else's without saying so.
+    """
+    with pytest.raises(ValueError, match="committed draws"):
+        common.BetaSetup(nx=6, ny=6).network()
+
+
+def test_a_seeded_beta_setup_draws_its_own_and_two_seeds_differ():
+    first = common.BetaSetup(nx=6, ny=6, gamma=1.0, seed=0).network()
+    second = common.BetaSetup(nx=6, ny=6, gamma=1.0, seed=1).network()
+
+    assert not np.allclose(first.Gg, second.Gg)
+
+
+def test_the_figures_use_the_reference_draws_rather_than_a_seed():
+    """The default is what the scripts build, and it has to be the committed draws.
+
+    On this sheet a seed moves the velocity at gamma = 1 by 20% and falls off the bottom of
+    the published axis, so a setup that quietly seeded would draw a wrong Figure S1.
+    """
+    assert common.BetaSetup().seed is None
+    np.testing.assert_array_equal(
+        common.BetaSetup(gamma=1.0).network().Gg,
+        common.BetaSetup(gamma=1.0).network().Gg,
+    )
+    seeded = common.BetaSetup(gamma=1.0, seed=0).network()
+    assert not np.allclose(common.BetaSetup(gamma=1.0).network().Gg, seeded.Gg)

@@ -11,10 +11,12 @@ operator splitting the membrane model and the spatial operator exchange only `v`
 from __future__ import annotations
 
 from types import ModuleType
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 import numpy.typing as npt
+
+from sknm import units
 
 
 @runtime_checkable
@@ -51,12 +53,17 @@ class MembraneModel(Protocol):
 
     @property
     def capacitance(self) -> float | None:
-        """float or None: Membrane capacitance in the model's own convention.
+        """float or None: Absolute membrane capacitance of one cell, in uF.
 
-        `None` when the model's voltage equation assumes a specific capacitance that it does
-        not expose as a parameter, in which case a caller cannot check it against a network's
-        own capacitance. Models differ in convention, and a mismatch shows up as a plausible
-        wave travelling at the wrong speed rather than as an obvious failure.
+        Absolute rather than specific, because that is what a voltage equation of the form
+        ``dv/dt = -I / Cm`` divides by. A network holds a *specific* capacitance and a membrane
+        area per cell, and the two conventions meet at ``Cm * membrane_area``; comparing them
+        is `Simulation`'s job.
+
+        `None` when the model's voltage equation assumes a capacitance that it does not expose
+        as a parameter -- ``dV/dt = -I_tot`` has one implicitly -- in which case a caller has
+        nothing to check. A mismatch shows up as a plausible wave travelling at the wrong speed
+        rather than as an obvious failure, which is why it is worth declaring where it can be.
         """
         ...
 
@@ -176,9 +183,10 @@ class GotranxModel:
         An imported gotranx-generated numpy module.
     v_name : str, optional
         Name of the membrane potential state, by default ``"V_m"``.
-    capacitance : float or None, optional
-        Membrane capacitance in the model's own convention, or `None` when the model's voltage
-        equation assumes a capacitance it does not expose. By default `None`.
+    capacitance : pint.Quantity or None, optional
+        Absolute membrane capacitance of one cell, such as ``5300 * units.fF``, or `None` when
+        the model's voltage equation assumes a capacitance it does not expose. By default
+        `None`.
     scheme : str, optional
         Name of the integration scheme function in `module`, by default
         ``"generalized_rush_larsen"``.
@@ -189,6 +197,11 @@ class GotranxModel:
         If `module` has no function named `scheme`.
     KeyError
         If `module` has no state named `v_name`.
+    TypeError
+        If `capacitance` is a bare number rather than a quantity.
+    pint.DimensionalityError
+        If `capacitance` does not measure a capacitance. A specific capacitance is the
+        plausible wrong answer, and it is refused rather than silently rescaled.
     """
 
     def __init__(
@@ -196,12 +209,16 @@ class GotranxModel:
         module: ModuleType,
         *,
         v_name: str = "V_m",
-        capacitance: float | None = None,
+        capacitance: Any = None,
         scheme: str = "generalized_rush_larsen",
     ) -> None:
         self._module = module
         self._v_name = v_name
-        self._capacitance = capacitance
+        self._capacitance: float | None = (
+            None
+            if capacitance is None
+            else float(units.in_base_units(capacitance, "capacitance", name="capacitance"))
+        )
         try:
             self._step = getattr(module, scheme)
         except AttributeError as exc:
@@ -240,7 +257,7 @@ class GotranxModel:
 
     @property
     def capacitance(self) -> float | None:
-        """float or None: Membrane capacitance, or `None` when the model does not expose it."""
+        """float or None: Absolute capacitance in uF, or `None` when the model exposes none."""
         return self._capacitance
 
     def state_index(self, name: str) -> int:
@@ -343,7 +360,7 @@ def from_gotranx(
     module: ModuleType,
     *,
     v_name: str = "V_m",
-    capacitance: float | None = None,
+    capacitance: Any = None,
     scheme: str = "generalized_rush_larsen",
 ) -> MembraneModel:
     """Wrap a gotranx-generated numpy module as a `MembraneModel`.
@@ -358,8 +375,10 @@ def from_gotranx(
         An imported gotranx-generated numpy module.
     v_name : str, optional
         Name of the membrane potential state, by default ``"V_m"``.
-    capacitance : float or None, optional
-        Membrane capacitance in the model's own convention, by default `None`.
+    capacitance : pint.Quantity or None, optional
+        Absolute membrane capacitance of one cell, such as ``5300 * units.fF``, by default
+        `None`. Declare it whenever the model's voltage equation divides by one: it is what
+        lets `sknm.Simulation` reject a network whose capacitance is not the model's.
     scheme : str, optional
         Name of the integration scheme function in `module`, by default
         ``"generalized_rush_larsen"``.
@@ -368,6 +387,17 @@ def from_gotranx(
     -------
     MembraneModel
         A model delegating to `module`.
+
+    Raises
+    ------
+    ValueError
+        If `module` has no function named `scheme`.
+    KeyError
+        If `module` has no state named `v_name`.
+    TypeError
+        If `capacitance` is a bare number rather than a quantity.
+    pint.DimensionalityError
+        If `capacitance` does not measure a capacitance.
 
     Examples
     --------

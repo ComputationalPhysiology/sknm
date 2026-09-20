@@ -360,3 +360,244 @@ def test_the_cell_width_is_rounded_to_half_a_micrometre():
 def test_an_anisotropy_factor_of_zero_or_less_is_refused():
     with pytest.raises(ValueError, match="alpha must be positive"):
         presets.hipsc_cell_size(0.0)
+
+
+# --- the pancreatic beta cell setup ---------------------------------------------------------
+
+BETA_NX, BETA_NY = 15, 15
+
+
+def test_the_beta_cell_is_a_thirteen_micrometre_cube():
+    """Every connection is the same length and has the same cross-section, in both directions."""
+    network = presets.beta_sheet(BETA_NX, BETA_NY)
+    side = (13 * um).m_as(cm)
+
+    np.testing.assert_allclose(network.length, side)
+    np.testing.assert_allclose(network.cross_section, side * side)
+
+
+def test_the_third_dimension_is_fixed_rather_than_following_the_volume_fraction():
+    """The divergence from the hiPSC sheet, which derives `lz` from `delta_e`.
+
+    At `delta_e = 0.5` the hiPSC rule would give 19.5 um; the reference fixes 13 um.
+    """
+    side = (13 * um).m_as(cm)
+    for delta_e in (0.5, 0.2, 0.02):
+        network = presets.beta_sheet(BETA_NX, BETA_NY, delta_e=delta_e)
+        np.testing.assert_allclose(network.cross_section, side * side)
+
+    # The rule the hiPSC sheet uses, for contrast: it would make the cross-section move.
+    hipsc_like = {d: (1 + d) * side * side for d in (0.5, 0.2, 0.02)}
+    assert len(set(hipsc_like.values())) == 3
+
+
+def test_the_membrane_area_is_the_surface_of_a_sphere_of_that_diameter():
+    """A beta cell is modelled as a sphere, not as the cuboid its cell size describes.
+
+    pi * d**2 at d = 13 um is 5.30929e-6 cm2, which is the reference's stated constant to
+    every digit it quotes. The cuboid's surface, 6 * l**2, is nearly twice that.
+    """
+    network = presets.beta_sheet(BETA_NX, BETA_NY)
+    diameter = (13 * um).m_as(cm)
+
+    assert presets.BETA_MEMBRANE_AREA.m_as(cm**2) == pytest.approx(np.pi * diameter**2)
+    assert presets.BETA_MEMBRANE_AREA.m_as(cm**2) == pytest.approx(5.3093e-6, rel=1e-5)
+    assert np.all(network.membrane_area == pytest.approx(np.pi * diameter**2))
+
+
+def test_the_specific_capacitance_is_derived_from_the_model_s_own_capacitance():
+    """`Cm * Am` has to equal what PBM's voltage equation divides by, exactly.
+
+    The reference declares 5300 fF in the membrane model and 1.0 uF/cm2 in the network, which
+    disagree by 0.18% against a check that admits none. Of the three numbers only the specific
+    capacitance is a generic constant rather than a measurement, so it is the one derived.
+    """
+    network = presets.beta_sheet(BETA_NX, BETA_NY)
+    model = presets.beta_membrane_model()
+
+    assert network.Cm * network.membrane_area[0] == pytest.approx(model.capacitance, rel=1e-15)
+    assert network.Cm == pytest.approx(0.998248, rel=1e-5)
+
+
+def test_the_beta_network_and_membrane_model_build_a_simulation():
+    """The check the derivation exists for: the reference's own numbers would raise here."""
+    from sknm import Simulation
+
+    simulation = Simulation(
+        presets.beta_sheet(BETA_NX, BETA_NY), presets.beta_membrane_model(), dt=0.02 * ms
+    )
+
+    assert simulation.model.capacitance == pytest.approx(5.3e-6)
+
+
+def test_a_beta_network_built_with_a_round_specific_capacitance_is_refused():
+    """The companion to the test above, and the reason the derivation is not cosmetic."""
+    from sknm import Simulation, sheet
+
+    network = sheet(
+        4,
+        4,
+        lx=13 * um,
+        ly=13 * um,
+        lz=13 * um,
+        delta_e=0.5,
+        sigma_i=presets.SIGMA_I,
+        sigma_e=presets.SIGMA_E,
+        Gg=presets.BETA_GAP_JUNCTION_CONDUCTANCE,
+        membrane_area=presets.BETA_MEMBRANE_AREA,
+        Cm=1.0 * uF / cm**2,
+    )
+
+    with pytest.raises(ValueError, match="capacitance"):
+        Simulation(network, presets.beta_membrane_model(), dt=0.02 * ms)
+
+
+def test_the_gap_junction_conductance_is_a_thousandfold_weaker_than_the_cardiac_one():
+    """5e6 kOhm against 5e3 kOhm, which is what makes a beta wave 150 times slower."""
+    assert presets.BETA_GAP_JUNCTION_CONDUCTANCE.m_as(mS) == pytest.approx(2e-7)
+    ratio = presets.GAP_JUNCTION_CONDUCTANCE / presets.BETA_GAP_JUNCTION_CONDUCTANCE
+    assert float(ratio) == pytest.approx(1000.0)
+
+
+def test_the_beta_stimulus_covers_two_columns_over_five_rows():
+    conductance = presets.beta_stimulus_conductance(BETA_NX, BETA_NY)
+    grid = conductance.reshape(BETA_NY, BETA_NX)
+    stimulated = grid == presets.BETA_STIMULUS_KATP_CONDUCTANCE
+
+    assert stimulated.sum() == 2 * 5
+    assert set(np.flatnonzero(stimulated.any(axis=0))) == {0, 1}
+    assert set(np.flatnonzero(stimulated.any(axis=1))) == {5, 6, 7, 8, 9}
+
+
+def test_the_beta_stimulus_halves_the_conductance_rather_than_zeroing_it():
+    """Unlike the cardiac stimulus, the unstimulated value is the model's own default."""
+    conductance = presets.beta_stimulus_conductance(BETA_NX, BETA_NY)
+
+    assert set(np.unique(conductance)) == {
+        presets.BETA_STIMULUS_KATP_CONDUCTANCE,
+        presets.BETA_KATP_CONDUCTANCE,
+    }
+    assert presets.BETA_STIMULUS_KATP_CONDUCTANCE == pytest.approx(
+        0.5 * presets.BETA_KATP_CONDUCTANCE
+    )
+
+
+def test_the_beta_stimulus_knows_which_axis_is_which():
+    conductance = presets.beta_stimulus_conductance(20, 8)
+    grid = conductance.reshape(8, 20)
+    stimulated = grid == presets.BETA_STIMULUS_KATP_CONDUCTANCE
+
+    assert set(np.flatnonzero(stimulated.any(axis=0))) == {0, 1}
+    assert set(np.flatnonzero(stimulated.any(axis=1))) == {1, 2, 3, 4, 5}
+
+
+def test_the_beta_conduction_path_runs_between_the_reference_s_two_cells():
+    """Columns 4 and 12 of row 6, which is the reference's `start_idx` and `end_idx` at 15x15."""
+    path = presets.beta_conduction_path(BETA_NX, BETA_NY)
+
+    assert (path.start, path.end) == (94, 102)
+    assert path.distance == pytest.approx((8 * 13 * um).m_as(cm))
+
+
+def test_a_sheet_too_narrow_to_hold_the_beta_conduction_path_is_refused():
+    with pytest.raises(ValueError, match="at least 13"):
+        presets.beta_conduction_path(12, BETA_NY)
+
+
+def test_the_narrowest_sheet_that_holds_the_beta_conduction_path_is_accepted():
+    assert presets.beta_conduction_path(13, BETA_NY).end % 13 == 12
+
+
+def test_the_beta_conduction_path_reads_the_two_axes_the_right_way_round():
+    path = presets.beta_conduction_path(20, 8)
+
+    assert path.start == (8 // 2 - 1) * 20 + 4
+
+
+def test_the_beta_centre_cell_is_the_one_the_reference_saves_its_trace_from():
+    """The reference's `save_idx` at 15x15, computed with C integer division."""
+    assert presets.beta_centre_cell(BETA_NX, BETA_NY) == 97
+
+
+def test_the_beta_centre_cell_reads_the_two_axes_the_right_way_round():
+    assert presets.beta_centre_cell(20, 8) == (8 // 2 - 1) * 20 + 10
+
+
+def test_the_two_setups_measure_at_the_same_cell_of_a_sheet_of_the_same_shape():
+    """Both reference drivers use the same `save_idx`, so this is one formula, not two."""
+    assert presets.beta_centre_cell(24, 18) == presets.hipsc_centre_cell(24, 18)
+
+
+def test_the_two_thresholds_are_the_reference_s():
+    from sknm.units import mV
+
+    assert presets.HIPSC_THRESHOLD.m_as(mV) == pytest.approx(-20.0)
+    assert presets.BETA_THRESHOLD.m_as(mV) == pytest.approx(-50.0)
+
+
+def test_the_beta_extracellular_conductance_dominates_the_intracellular_one():
+    """Why KNM, SKNM and SKNM(ue=0) coincide for beta cells and do not for hiPSC-CMs.
+
+    The gap junction resistance is so large that it swamps both conductivities, so lambda is
+    enormous and SKNM's `lambda / (1 + lambda)` is indistinguishable from 1.
+    """
+    network = presets.beta_sheet(BETA_NX, BETA_NY)
+
+    assert network.lam > 1e4
+    assert network.lam / (1 + network.lam) == pytest.approx(1.0, abs=1e-4)
+    assert presets.hipsc_sheet(40, 40).lam < 100
+
+
+# --- the index arithmetic both families share -----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("ny", "row"),
+    [(40, 19), (15, 6), (20, 9), (8, 3), (9, 3), (13, 5), (36, 17), (25, 11), (4, 1)],
+)
+def test_the_measurement_row_is_the_reference_s_integer_division(ny, row):
+    """`round(num_cells_y/2) - 1` in the C, where the division is between two ints.
+
+    So it truncates before it rounds, and `ny // 2 - 1` is the Python for it. Reading it as
+    `round(ny / 2) - 1` agrees at every even `ny` and is one row out at every odd one, which
+    no hiPSC sheet would ever show: the paper's is 40 by 40.
+    """
+    assert presets.hipsc_centre_cell(7, ny) // 7 == row
+    assert presets.beta_centre_cell(7, ny) // 7 == row
+
+
+@pytest.mark.parametrize(
+    ("nx", "ny", "first", "rows"),
+    [(40, 40, 14, 11), (15, 15, 5, 5)],
+)
+def test_the_stimulated_block_is_the_reference_s_rows(nx, ny, first, rows):
+    """The C stimulates a window in y given in cell widths, with a node at each cell centre.
+
+    For hiPSC-CMs `14*ly < y < 25*ly` is rows 14 to 24; for beta cells `5*ly < y < 10*ly` is
+    rows 5 to 9. Both come out as the block of `rows` rows centred in the sheet -- which for
+    the cardiac sheet also happens to be the measurement row, and for the beta sheet is one
+    row above it.
+    """
+    if nx == 40:
+        stimulated = presets.hipsc_stimulus_amplitude(nx, ny) > 0
+    else:
+        stimulated = (
+            presets.beta_stimulus_conductance(nx, ny) == presets.BETA_STIMULUS_KATP_CONDUCTANCE
+        )
+    covered = np.flatnonzero(stimulated.reshape(ny, nx).any(axis=1))
+
+    np.testing.assert_array_equal(covered, np.arange(first, first + rows))
+
+
+def test_the_beta_stimulus_is_not_centred_on_the_measurement_row():
+    """Unlike the cardiac one, and the reference is explicit about it.
+
+    Worth pinning rather than quietly aligning the two: the beta block sits one row above the
+    row the velocity is read along, and a helper that centred it on that row would move the
+    stimulus off the reference's cells.
+    """
+    stimulated = presets.beta_stimulus_conductance(15, 15) == presets.BETA_STIMULUS_KATP_CONDUCTANCE
+    rows = np.flatnonzero(stimulated.reshape(15, 15).any(axis=1))
+    measurement_row = presets.beta_conduction_path(15, 15).start // 15
+
+    assert int(np.median(rows)) == measurement_row + 1

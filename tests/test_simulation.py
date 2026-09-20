@@ -662,9 +662,43 @@ def test_a_capacitance_mismatch_raises(strand):
 
 
 def test_a_matching_capacitance_is_accepted(strand):
-    simulation = Simulation(strand, DeclaredCapacitance(strand.Cm), dt=DT)
+    """A model's capacitance is absolute, so it matches `Cm` times the cell's membrane area."""
+    absolute = strand.Cm * strand.membrane_area[0]
+    simulation = Simulation(strand, DeclaredCapacitance(absolute), dt=DT)
 
-    assert simulation.model.capacitance == strand.Cm
+    assert simulation.model.capacitance == absolute
+
+
+def test_a_capacitance_matching_the_specific_one_is_a_mismatch(strand):
+    """The two conventions differ by the membrane area, which is five orders of magnitude.
+
+    Comparing a declared absolute capacitance against the network's specific one would accept
+    a model whose voltage equation runs at 1e5 times the right capacitance.
+    """
+    with pytest.raises(ValueError, match="capacitance"):
+        Simulation(strand, DeclaredCapacitance(strand.Cm), dt=DT)
+
+
+def test_the_capacitance_is_checked_against_every_cell(varied_sheet):
+    """Per cell, not against one representative area.
+
+    A network may give each cell its own membrane area, and one membrane model serves all of
+    them, so a single declared capacitance can only be right if every cell agrees with it.
+    """
+    absolute = varied_sheet.Cm * varied_sheet.membrane_area[0]
+
+    with pytest.raises(ValueError, match="capacitance"):
+        Simulation(varied_sheet, DeclaredCapacitance(absolute), dt=DT)
+
+
+def test_a_uniform_area_network_accepts_the_capacitance_it_implies(strand):
+    """The companion to the test above: identical areas, so one capacitance covers them all."""
+    areas = np.unique(strand.membrane_area)
+    assert areas.size == 1
+
+    simulation = Simulation(strand, DeclaredCapacitance(strand.Cm * areas[0]), dt=DT)
+
+    assert simulation.model.capacitance == pytest.approx(strand.Cm * areas[0])
 
 
 def test_the_capacitance_check_can_be_bypassed(strand):

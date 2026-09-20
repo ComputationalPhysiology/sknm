@@ -55,9 +55,11 @@ EXTRACELLULAR_POTENTIAL = "u_e"
 #: Negative, so it cannot collide with a row index.
 _EXTRACELLULAR_ROW = -1
 
-#: Largest relative disagreement between a model's declared capacitance and the network's that
-#: is taken for the same number rather than a mismatch. Wide enough for the rounding in a
-#: printed value, far too narrow for the factor-of-ten mistakes the check exists to catch.
+#: Largest relative disagreement between a model's declared capacitance and the one a cell's
+#: membrane area implies that is taken for the same number rather than a mismatch. Wide enough
+#: for the rounding in a printed value, far too narrow for the factor-of-ten mistakes the check
+#: exists to catch -- including the two conventions being confused, which is a factor of the
+#: membrane area, around 1e5.
 CAPACITANCE_TOLERANCE = 1e-9
 
 
@@ -195,8 +197,8 @@ class Simulation:
     splitting : {"godunov"}, optional
         Operator splitting scheme, by default ``"godunov"``.
     check_capacitance : bool, optional
-        Whether to reject a membrane model whose declared capacitance disagrees with the
-        network's, by default `True`.
+        Whether to reject a membrane model whose declared absolute capacitance disagrees with
+        ``network.Cm * network.membrane_area`` at any cell, by default `True`.
 
     Attributes
     ----------
@@ -214,7 +216,7 @@ class Simulation:
     ValueError
         If `variant`, `solver` or `splitting` names nothing known, if `dt` is not positive and
         finite, if `ground` is not one cell per connected component, or if the model's declared
-        capacitance disagrees with the network's.
+        capacitance disagrees with the one any of the network's cells implies.
     NotImplementedError
         If `splitting` is ``"strang"``.
 
@@ -565,7 +567,7 @@ def _check_splitting(splitting: Splitting) -> None:
 
 
 def _check_capacitance(network: CellNetwork, model: MembraneModel) -> None:
-    """Reject a membrane model whose capacitance is not the network's.
+    """Reject a membrane model whose capacitance is not the one the network implies.
 
     Raised rather than warned. A mismatch does not break a run: it produces a perfectly
     plausible wave travelling at the wrong speed, and a warning about it would scroll past
@@ -576,10 +578,20 @@ def _check_capacitance(network: CellNetwork, model: MembraneModel) -> None:
         # The model's voltage equation assumes a capacitance it does not expose, so there is
         # nothing to compare against.
         return
-    if abs(declared - network.Cm) > CAPACITANCE_TOLERANCE * abs(network.Cm):
+    # A model's capacitance is absolute, in uF; a network carries a specific capacitance and a
+    # membrane area per cell. Comparing per cell rather than against one representative area
+    # also catches a network whose cells do not all agree with the single model serving them.
+    implied = network.Cm * network.membrane_area
+    mismatched = np.abs(declared - implied) > CAPACITANCE_TOLERANCE * np.abs(implied)
+    if mismatched.any():
+        cell = int(np.argmax(mismatched))
         raise ValueError(
-            f"the membrane model's capacitance of {declared:g} uF/cm^2 is not the network's "
-            f"{network.Cm:g} uF/cm^2. A mismatch shows up as a plausible wave at the wrong "
-            f"speed rather than as a failure. Build the network with `Cm={declared:g} * uF / "
-            f"cm ** 2`, or pass `check_capacitance=False` if the difference is intended."
+            f"the membrane model's capacitance of {declared:g} uF is not cell {cell}'s "
+            f"{implied[cell]:g} uF, which is its membrane area of "
+            f"{network.membrane_area[cell]:g} cm^2 times the network's Cm of "
+            f"{network.Cm:g} uF/cm^2 ({int(mismatched.sum())} of {mismatched.size} cells "
+            f"disagree). A mismatch shows up as a plausible wave at the wrong speed rather "
+            f"than as a failure. Build the network with "
+            f"`Cm={declared / network.membrane_area[cell]:g} * uF / cm ** 2`, or pass "
+            f"`check_capacitance=False` if the difference is intended."
         )

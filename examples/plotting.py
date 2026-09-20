@@ -106,7 +106,9 @@ def use_house_style() -> None:
     mpl.rcParams.update(_RC)
 
 
-def small_multiples(n_panels: int, *, width: float = 11.0, height: float = 3.1) -> tuple[Any, Any]:
+def small_multiples(
+    n_panels: int, *, width: float = 11.0, height: float = 3.1, share_y: bool = False
+) -> tuple[Any, Any]:
     """A row of panels sharing one x axis meaning, as the paper's Figures 3 and 4 are drawn.
 
     Parameters
@@ -115,13 +117,23 @@ def small_multiples(n_panels: int, *, width: float = 11.0, height: float = 3.1) 
         How many panels.
     width, height : float, optional
         Figure size in inches, by default 11.0 by 3.1.
+    share_y : bool, optional
+        Whether every panel is drawn on one y scale, by default `False`.
+
+        Off by default because the paper's Figures 3, 4 and S2 give their 2% panel a range of
+        its own, where the models separate far enough to need it. Turn it on where the
+        figure's message is that the panels *agree*: panels on scales of their own cannot be
+        compared by eye at all, so four identical curves would be drawn four different sizes
+        and read as four different results.
 
     Returns
     -------
     tuple
         The figure and a flat array of its axes.
     """
-    figure, axes = plt.subplots(1, n_panels, figsize=(width, height), layout="constrained")
+    figure, axes = plt.subplots(
+        1, n_panels, figsize=(width, height), layout="constrained", sharey=share_y
+    )
     return figure, axes.ravel()
 
 

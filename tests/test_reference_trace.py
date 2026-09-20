@@ -4,9 +4,9 @@ The suite otherwise asserts scalar targets, which a regression could leave untou
 still moving a whole trace. This closes that gap by checking the derivatives themselves,
 against the reference implementation rather than against a stored fixture.
 
-`tools/validate_base_model_IM.py` compares 500 randomised state/parameter/time cases x 25
-derivatives against `references/SKNM_code/base_model_IM.h` compiled with g++, and exits
-non-zero if any relative difference exceeds 1e-12.
+Each validator compares 500 randomised state/parameter/time cases against the corresponding
+header in `references/SKNM_code` compiled with g++, and exits non-zero if the agreement is
+worse than machine precision.
 """
 
 import shutil
@@ -17,20 +17,24 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-VALIDATE = ROOT / "tools" / "validate_base_model_IM.py"
-REFERENCE_HEADER = ROOT / "references" / "SKNM_code" / "base_model_IM.h"
+REFERENCE_DIR = ROOT / "references" / "SKNM_code"
 
 pytestmark = pytest.mark.reference
 
+#: (validator, reference header) for every committed generated model.
+VALIDATORS = [
+    ("validate_base_model_IM.py", "base_model_IM.h"),
+    ("validate_PBM.py", "PBM.h"),
+]
 
-@pytest.mark.skipif(
-    not REFERENCE_HEADER.exists(),
-    reason="references/SKNM_code is gitignored and absent from a fresh clone",
-)
+
 @pytest.mark.skipif(shutil.which("g++") is None, reason="no C++ compiler to build the reference")
-def test_committed_membrane_code_matches_the_c_reference():
+@pytest.mark.parametrize(("validator", "header"), VALIDATORS)
+def test_committed_membrane_code_matches_the_c_reference(validator, header):
+    if not (REFERENCE_DIR / header).exists():
+        pytest.skip("references/SKNM_code is gitignored and absent from a fresh clone")
     result = subprocess.run(
-        [sys.executable, str(VALIDATE)],
+        [sys.executable, str(ROOT / "tools" / validator)],
         capture_output=True,
         text=True,
         cwd=ROOT,
