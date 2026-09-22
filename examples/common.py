@@ -243,7 +243,7 @@ class Setup:
             Every field and every extra, sorted by name. Floats are written so that they read
             back exactly, so two labels match only when the numbers do.
         """
-        return _label(self, **extra)
+        return cache_label(self, **extra)
 
 
 def beta_draws() -> npt.NDArray[np.float64]:
@@ -377,7 +377,7 @@ class BetaSetup:
         str
             Every field and every extra, sorted by name.
         """
-        return _label(self, **extra)
+        return cache_label(self, **extra)
 
 
 def measure_conduction_velocity(setup: Setup | BetaSetup, variant: Variant | str) -> float:
@@ -557,7 +557,7 @@ def _cell(value: Any) -> str:
     return f"{value:.4f}" if isinstance(value, float) else str(value)
 
 
-def _label(setup: Any, **extra: Any) -> str:
+def cache_label(setup: Any, **extra: Any) -> str:
     """The cache key of any setup: every field it declares, plus anything else asked for.
 
     Built from `dataclasses.asdict`, so a field added to a setup enters its key rather than
