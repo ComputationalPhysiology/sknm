@@ -101,6 +101,10 @@ markers = [
     # Needs the reference C++ in references/SKNM_code and a C++ compiler, neither of which is
     # present in a fresh clone, so these tests skip rather than fail.
     "reference: compares against the authors' C++ reference; skipped unless it is available",
+    # Needs dolfinx and fenicsx-beat, which are not dependencies of this package and are not
+    # installable from PyPI alone, so these tests skip rather than fail. CI runs them in a
+    # dolfinx container; see the `bidomain` job.
+    "dolfinx: exercises the continuum models; skipped unless dolfinx and beat are available",
 ]
 
 [tool.coverage.run]
