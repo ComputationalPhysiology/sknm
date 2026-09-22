@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Weekly, for the figure scripts: they take about half an hour and reproduce published
+    # figures rather than guarding a change, so they do not belong on a pull request.
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -52,3 +57,42 @@ jobs:
             python "${script}"
             echo "::endgroup::"
           done
+
+  # The continuum models need dolfinx, which is not installable from PyPI, so this job runs in
+  # the project's own container image. `sknm` itself does not depend on either package: the
+  # scripts that do live in `examples/` and skip without them, which is what the other jobs
+  # exercise by not having them.
+  bidomain:
+    runs-on: ubuntu-latest
+    container: ghcr.io/fenics/dolfinx/dolfinx:stable
+    steps:
+      - uses: actions/checkout@v5
+      # `fenicsx-beat` 0.6 is where the bidomain model arrives; the tests check for the class
+      # rather than the version, but pinning the floor gives a clearer failure than a skip.
+      # `examples` as well as `test`: some of these tests import the figure scripts, which
+      # import matplotlib.
+      - run: python3 -m pip install --break-system-packages -e ".[test,examples]" "fenicsx-beat>=0.6"
+      - run: python3 -m pytest tests/test_bidomain.py -v
+
+  # The figure scripts, which are minutes rather than seconds and so are not run per pull
+  # request. Fast mode only; `--full` is for reproducing the paper's own sample by hand.
+  bidomain-figures:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    container: ghcr.io/fenics/dolfinx/dolfinx:stable
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 -m pip install --break-system-packages -e ".[examples,test]" "fenicsx-beat>=0.6"
+      - name: Run the continuum figure scripts
+        run: |
+          for script in examples/fig0[6-9]_*.py; do
+            echo "::group::${script}"
+            python3 "${script}"
+            echo "::endgroup::"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: continuum-figures
+          path: examples/figures/
