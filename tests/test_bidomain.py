@@ -10,6 +10,8 @@ The oracle throughout is the reference implementation's own formulas, transcribe
 its source rather than imported from the code under test.
 """
 
+import itertools
+
 import numpy as np
 import pytest
 
@@ -863,3 +865,59 @@ def test_both_quantities_converge_as_the_step_shrinks(table_s3_rows):
 
     assert velocities == sorted(velocities)
     assert upstrokes == sorted(upstrokes)
+
+
+# --------------------------------------------------------------------------------------
+# the scripts
+# --------------------------------------------------------------------------------------
+
+FIGURE_SCRIPTS = (
+    "fig06_continuum_travelling_wave",
+    "fig07_continuum_anisotropy",
+    "fig08_continuum_gap_junction_variation",
+    "fig09_continuum_sources_of_difference",
+)
+
+
+@pytest.mark.parametrize("name", FIGURE_SCRIPTS)
+def test_a_script_says_what_is_missing_rather_than_failing(name, monkeypatch, capsys):
+    """What every machine without dolfinx sees, which is most of the ones CI runs on.
+
+    The example job runs every `fig*.py` there is and fails if one exits non-zero, so these
+    four have to come back quietly rather than raise or exit. Checked with `available` forced
+    to False, so that it is checked on a machine where the packages *are* installed too.
+    """
+    pytest.importorskip("matplotlib")
+    import importlib
+
+    script = importlib.import_module(name)
+    monkeypatch.setattr(bidomain, "available", lambda: False)
+    monkeypatch.setattr("sys.argv", [f"{name}.py"])
+
+    script.main()
+
+    assert bidomain.REQUIREMENT in capsys.readouterr().out
+
+
+@needs_dolfinx
+def test_the_snapshots_are_taken_at_the_times_the_figure_names():
+    """Figure 6 reads the sheet at three fixed times, and nothing else checks that it did.
+
+    A run stops when the wave reaches the far probe, which is before the last snapshot time,
+    so the script has to hold it open; a callback that fired on the wrong step, or a run that
+    ended early, would hand the figure two frames and a repeat rather than three.
+    """
+    pytest.importorskip("matplotlib")
+    import fig06_continuum_travelling_wave as fig06
+
+    setup = bidomain.BidomainSetup(**COARSE)
+    frames = fig06.snapshots(setup, "monodomain")
+
+    nx, ny = setup.elements()
+    assert frames.shape == (len(fig06.SNAPSHOT_TIMES), ny + 1, nx + 1)
+    assert np.isfinite(frames).all()
+    # The sheet is at rest at the first time and depolarized somewhere by the last, and no two
+    # frames are the same moment twice.
+    assert frames[0].max() > frames[0].min()
+    for earlier, later in itertools.pairwise(frames):
+        assert not np.allclose(earlier, later)

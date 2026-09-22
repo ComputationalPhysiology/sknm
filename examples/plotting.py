@@ -35,25 +35,39 @@ AXIS = "#c3c2b7"
 #: One colour per model, in an order whose pairs stay separable under colour vision
 #: deficiency, and one line style per model, so the identity never rests on colour alone.
 #: The line styles are the paper's own: KNM solid, SKNM dotted.
+#:
+#: The two continuum models are keyed by name and share the network models' two colours and
+#: styles. Figures 6 to 9 are the counterparts of Figures 2 to 5 one for one -- the bidomain
+#: model is where KNM's assumption is not yet made and the monodomain model is where it is --
+#: so drawing the counterpart pair in the counterpart colours is what lets a reader lay the
+#: two halves of the paper side by side.
 SERIES_COLOUR = {
     Variant.KNM: "#2a78d6",
     Variant.SKNM: "#eb6834",
     Variant.SKNM_UE0: "#1baf7a",
+    "bidomain": "#2a78d6",
+    "monodomain": "#eb6834",
 }
 SERIES_STYLE = {
     Variant.KNM: "-",
     Variant.SKNM: ":",
     Variant.SKNM_UE0: "--",
+    "bidomain": "-",
+    "monodomain": ":",
 }
 SERIES_MARKER = {
     Variant.KNM: "o",
     Variant.SKNM: "s",
     Variant.SKNM_UE0: "^",
+    "bidomain": "o",
+    "monodomain": "s",
 }
 SERIES_LABEL = {
     Variant.KNM: "KNM",
     Variant.SKNM: "SKNM",
     Variant.SKNM_UE0: r"SKNM($u_e$=0)",
+    "bidomain": "BD",
+    "monodomain": "MD",
 }
 
 #: A single hue, light to dark, for the membrane potential snapshots. Magnitude gets a
@@ -215,7 +229,7 @@ def plot_series(
     axis: Any,
     x: Sequence[float],
     y: Sequence[float],
-    variant: Variant,
+    variant: Variant | str,
     **kwargs: Any,
 ) -> None:
     """Draw one model's curve, in its colour, its line style and its marker.
@@ -230,8 +244,9 @@ def plot_series(
         Where to draw.
     x, y : sequence of float
         The points, in order.
-    variant : Variant
-        Which model this is, choosing every part of the appearance.
+    variant : Variant or str
+        Which model this is, choosing every part of the appearance. One of the three network
+        variants, or ``"bidomain"`` or ``"monodomain"``.
     **kwargs
         Passed to `matplotlib.axes.Axes.plot`.
     """
@@ -248,7 +263,7 @@ def plot_series(
     )
 
 
-def label_endpoints(axis: Any, x: float, values: Mapping[Variant, float]) -> None:
+def label_endpoints(axis: Any, x: float, values: Mapping[Variant | str, float]) -> None:
     """Name each model beside the far end of its curve.
 
     Direct labels selectively, in the one panel where the curves separate far enough to
@@ -262,8 +277,8 @@ def label_endpoints(axis: Any, x: float, values: Mapping[Variant, float]) -> Non
         Where to draw.
     x : float
         Where the curves end, in data coordinates.
-    values : mapping of Variant to float
-        Each model's value at `x`.
+    values : mapping to float
+        Each model's value at `x`, keyed as `plot_series` takes them.
     """
     ordered = sorted(values, key=lambda variant: -values[variant])
     low, high = axis.get_ylim()
@@ -282,7 +297,7 @@ def label_endpoints(axis: Any, x: float, values: Mapping[Variant, float]) -> Non
         )
 
 
-def variant_legend(figure: Any, variants: Sequence[Variant]) -> None:
+def variant_legend(figure: Any, variants: Sequence[Variant | str]) -> None:
     """Put one legend across the bottom of a figure, naming every model it draws.
 
     Placed outside the panels, so it cannot land on an axis label whatever the panels grow
@@ -293,8 +308,8 @@ def variant_legend(figure: Any, variants: Sequence[Variant]) -> None:
     ----------
     figure : matplotlib.figure.Figure
         The figure.
-    variants : sequence of Variant
-        The models drawn, in the order to list them.
+    variants : sequence
+        The models drawn, in the order to list them, keyed as `plot_series` takes them.
     """
     handles = [
         mpl.lines.Line2D(
