@@ -14,7 +14,10 @@ varies across it. Figure 5 shows one of each.
 Together they say the two models should differ most at a wide spread and a small
 extracellular space, which is where Figure 4 finds the difference.
 
-    python examples/fig05_sources_of_difference.py [--full]
+    python examples/fig05_sources_of_difference.py
+
+Set ``SKNM_EXAMPLES_FULL=1`` to sweep the paper's full sample rather than every other
+point of it.
 """
 
 from __future__ import annotations
@@ -57,10 +60,10 @@ def extracellular_range(setup: common.Setup) -> float:
 
 
 def main() -> None:
-    args = common.parse_args(__doc__.splitlines()[0])
-    fractions = common.sample(common.VOLUME_FRACTIONS, args)
+    options = common.options()
+    fractions = common.sample(common.VOLUME_FRACTIONS, options)
     cache = common.ResultCache(
-        f"fig05-{'full' if args.full else 'fast'}", enabled=not args.no_cache
+        f"fig05-{'full' if options.full else 'fast'}", enabled=not options.no_cache
     )
 
     misfits = [
@@ -101,7 +104,7 @@ def main() -> None:
     axes[1].set_ylabel("mV")
     axes[1].set_ylim(bottom=0.0)
 
-    common.write_figure(figure, args.output_dir, "fig05_sources_of_difference")
+    common.write_figure(figure, options.output_dir, "fig05_sources_of_difference")
 
     common.print_table(
         ["gamma", "F(lambda) (mS/cm)^2"],

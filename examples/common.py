@@ -4,11 +4,11 @@ The scripts are `fig02` through `fig05`; this module holds what they have in com
 paper's sweep samples, the setup that turns one point of a sweep into a running simulation,
 and a cache so that replotting does not mean resolving.
 
-**Fast by default.** Every script runs a reduced sample of its sweep unless given ``--full``,
-and the reduction is *fewer points, never cheaper points*. Each point that is plotted is
-computed on the paper's own 40x40 sheet at its own 0.02 ms time step, so a fast figure and a
-full figure differ only in how many markers the curves carry. The two reductions that would
-have been faster both corrupt the result and are not offered:
+**Fast by default.** Every script runs a reduced sample of its sweep unless
+``SKNM_EXAMPLES_FULL`` is set, and the reduction is *fewer points, never cheaper points*.
+Each point that is plotted is computed on the paper's own 40x40 sheet at its own 0.02 ms time
+step, so a fast figure and a full figure differ only in how many markers the curves carry. The
+two reductions that would have been faster both corrupt the result and are not offered:
 
 - **A smaller sheet.** Conduction velocity is not a local measurement. Halving the sheet's
   height raises it by 13% and narrowing the sheet to the 35 cells the measurement columns
@@ -25,9 +25,9 @@ What is left is the number of points, which changes no point's value.
 
 from __future__ import annotations
 
-import argparse
 import dataclasses
 import json
+import os
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -80,57 +80,114 @@ DRAW_SEED = 0
 CACHE_FORMAT = 2
 
 
-def parse_args(description: str) -> argparse.Namespace:
-    """Read the command line every figure script accepts.
+#: The environment variables a run is configured with, one per field of `Options`.
+#:
+#: A command line cannot reach these scripts. Each is also run as a notebook, where the
+#: process belongs to the Jupyter kernel and ``sys.argv`` describes the kernel's own
+#: invocation rather than the script's; the environment is what both ways of running share.
+OPTION_VARIABLES = (
+    "SKNM_EXAMPLES_FULL",
+    "SKNM_EXAMPLES_NO_CACHE",
+    "SKNM_EXAMPLES_OUTPUT_DIR",
+)
+
+#: What a flag variable may be set to. An empty value counts as false, because exporting a
+#: variable to the empty string is how a shell spells "unset".
+TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+FALSE_VALUES = frozenset({"0", "false", "no", "off", ""})
+
+
+@dataclasses.dataclass(frozen=True)
+class Options:
+    """How much of a sweep to run, whether to reuse cached results, and where to write.
+
+    Attributes
+    ----------
+    full : bool
+        Sweep the paper's full sample rather than every other point of it.
+    no_cache : bool
+        Resolve every point, ignoring and overwriting any cached result.
+    output_dir : pathlib.Path
+        Where the figure is written.
+    """
+
+    full: bool = False
+    no_cache: bool = False
+    output_dir: Path = FIGURE_DIR
+
+
+def _flag(name: str) -> bool:
+    """Read one environment variable as a boolean.
 
     Parameters
     ----------
-    description : str
-        What the script reproduces, shown by ``--help``.
+    name : str
+        The variable to read. An unset variable is false.
 
     Returns
     -------
-    argparse.Namespace
-        With `full`, `no_cache` and `output_dir`.
+    bool
+        What the variable is set to.
+
+    Raises
+    ------
+    ValueError
+        If the variable is set to something that is neither true nor false. Reading an
+        unrecognized value as false would run a different sweep than the one asked for and
+        say nothing about it.
     """
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument(
-        "--full",
-        action="store_true",
-        help="sweep the paper's full sample rather than every other point of it",
+    value = os.environ.get(name, "")
+    lowered = value.strip().lower()
+    if lowered in TRUE_VALUES:
+        return True
+    if lowered in FALSE_VALUES:
+        return False
+    raise ValueError(
+        f"{name} is set to {value!r}, which is neither true nor false; use one of "
+        f"{', '.join(sorted(TRUE_VALUES))} or {', '.join(sorted(FALSE_VALUES - {''}))}"
     )
-    parser.add_argument(
-        "--no-cache",
-        action="store_true",
-        help="resolve every point, ignoring and overwriting any cached results",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=FIGURE_DIR,
-        help=f"where to write the figure, by default {FIGURE_DIR}",
-    )
-    return parser.parse_args()
 
 
-def sample(points: Sequence[float], args: argparse.Namespace) -> tuple[float, ...]:
-    """Choose how much of a sweep to run, from ``--full``.
+def options() -> Options:
+    """Read how this run was asked to behave from the environment.
+
+    Returns
+    -------
+    Options
+        Set from `OPTION_VARIABLES`, defaulting to a fast, cached run that writes into
+        `FIGURE_DIR`.
+
+    Raises
+    ------
+    ValueError
+        If a flag variable is set to something that is neither true nor false.
+    """
+    directory = os.environ.get("SKNM_EXAMPLES_OUTPUT_DIR", "").strip()
+    return Options(
+        full=_flag("SKNM_EXAMPLES_FULL"),
+        no_cache=_flag("SKNM_EXAMPLES_NO_CACHE"),
+        output_dir=Path(directory) if directory else FIGURE_DIR,
+    )
+
+
+def sample(points: Sequence[float], options: Options) -> tuple[float, ...]:
+    """Choose how much of a sweep to run, from `Options.full`.
 
     Parameters
     ----------
     points : sequence of float
         The full sample, in order.
-    args : argparse.Namespace
-        From `parse_args`.
+    options : Options
+        From `options`.
 
     Returns
     -------
     tuple of float
-        `points` itself under ``--full``, otherwise every other one of them with both ends
-        kept. A reduced sample is always a subset, so a fast figure plots a subset of the
-        markers a full figure does, at the same values.
+        `points` itself when `options` is full, otherwise every other one of them with both
+        ends kept. A reduced sample is always a subset, so a fast figure plots a subset of
+        the markers a full figure does, at the same values.
     """
-    if args.full:
+    if options.full:
         return tuple(points)
     fewer = tuple(points[::2])
     if len(points) and points[-1] not in fewer:

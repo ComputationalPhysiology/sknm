@@ -9,7 +9,10 @@ The five anisotropy factors are the ones the reference implementation ships mesh
 cell size at each of them follows from `sknm.presets.hipsc_cell_size`, so the sweep is not
 limited to them.
 
-    python examples/fig03_anisotropy.py [--full]
+    python examples/fig03_anisotropy.py
+
+Set ``SKNM_EXAMPLES_FULL=1`` to sweep the paper's full sample rather than every other
+point of it.
 """
 
 from __future__ import annotations
@@ -22,10 +25,10 @@ VARIANTS = (Variant.KNM, Variant.SKNM)
 
 
 def main() -> None:
-    args = common.parse_args(__doc__.splitlines()[0])
-    factors = common.sample(common.ANISOTROPY_FACTORS, args)
+    options = common.options()
+    factors = common.sample(common.ANISOTROPY_FACTORS, options)
     cache = common.ResultCache(
-        f"fig03-{'full' if args.full else 'fast'}", enabled=not args.no_cache
+        f"fig03-{'full' if options.full else 'fast'}", enabled=not options.no_cache
     )
 
     velocities: dict[tuple[float, Variant], float] = {}
@@ -63,7 +66,7 @@ def main() -> None:
     )
     plotting.variant_legend(figure, VARIANTS)
 
-    common.write_figure(figure, args.output_dir, "fig03_anisotropy")
+    common.write_figure(figure, options.output_dir, "fig03_anisotropy")
 
     common.print_table(
         [

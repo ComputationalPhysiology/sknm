@@ -94,17 +94,22 @@ Each script in [`examples/`](examples) reproduces one of the paper's figures, wr
 
 ```bash
 python -m pip install -e ".[examples]"
-python examples/fig03_anisotropy.py           # a reduced sample, about a minute
-python examples/fig03_anisotropy.py --full    # the paper's whole sample
+python examples/fig03_anisotropy.py                       # a reduced sample, about a minute
+SKNM_EXAMPLES_FULL=1 python examples/fig03_anisotropy.py  # the paper's whole sample
 ```
 
 Every script is **fast by default**: it sweeps every other point of its parameter range unless
-given `--full`. The reduction is fewer points, never cheaper points — each point plotted is
-computed on the paper's own 40×40 sheet at its own 0.02 ms time step, so `--full` adds markers
-rather than moving them. Results are cached under `examples/results/` and reused, so restyling
-a figure costs no simulation; the cache is keyed on the parameters of a run and cannot see that
-`sknm` itself has changed, so pass `--no-cache` or delete the directory after changing the
-library.
+`SKNM_EXAMPLES_FULL` is set. The reduction is fewer points, never cheaper points — each point
+plotted is computed on the paper's own 40×40 sheet at its own 0.02 ms time step, so a full run
+adds markers rather than moving them. Results are cached under `examples/results/` and reused,
+so restyling a figure costs no simulation; the cache is keyed on the parameters of a run and
+cannot see that `sknm` itself has changed, so set `SKNM_EXAMPLES_NO_CACHE=1` or delete the
+directory after changing the library.
+
+Each script is also a page of the documentation site, so it is run both as a script and, by
+the docs build, as a notebook. A notebook's process belongs to the Jupyter kernel and its
+command line describes the kernel, not the script, so these are environment variables rather
+than options: `SKNM_EXAMPLES_FULL`, `SKNM_EXAMPLES_NO_CACHE` and `SKNM_EXAMPLES_OUTPUT_DIR`.
 
 The gap junction draws differ between the two cell types, and the reason is measurable. The
 **cardiac** figures seed a generator rather than using the paper's own random numbers: on a

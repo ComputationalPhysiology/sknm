@@ -10,7 +10,6 @@ one, so the fast figure and the full figure disagree at the same marker.
 import importlib.util
 import json
 import sys
-from argparse import Namespace
 from pathlib import Path
 
 import numpy as np
@@ -35,8 +34,99 @@ def _load_common():
 
 common = _load_common()
 
-FULL = Namespace(full=True, no_cache=False, output_dir=None)
-FAST = Namespace(full=False, no_cache=False, output_dir=None)
+FULL = common.Options(full=True)
+FAST = common.Options(full=False)
+
+
+# --------------------------------------------------------------------------------------
+# the options the environment carries
+#
+# The scripts are run both as scripts and as notebooks, and a notebook's process is the
+# kernel's, whose command line belongs to the kernel. Everything a run can be asked for
+# therefore arrives through the environment, where both ways of running can reach it.
+# --------------------------------------------------------------------------------------
+
+
+def test_an_unconfigured_run_is_fast_cached_and_writes_to_the_figure_directory(monkeypatch):
+    for name in common.OPTION_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    assert common.options() == common.Options(
+        full=False, no_cache=False, output_dir=common.FIGURE_DIR
+    )
+
+
+def test_options_asked_for_nothing_in_particular_are_the_same_fast_cached_run():
+    """`Options()` is what a script gets before the environment is consulted at all."""
+    assert common.Options() == common.Options(
+        full=False, no_cache=False, output_dir=common.FIGURE_DIR
+    )
+
+
+def test_the_full_sweep_is_asked_for_through_the_environment(monkeypatch):
+    monkeypatch.setenv("SKNM_EXAMPLES_FULL", "1")
+    assert common.options().full is True
+
+
+def test_the_cache_is_disabled_through_the_environment(monkeypatch):
+    monkeypatch.setenv("SKNM_EXAMPLES_NO_CACHE", "1")
+    assert common.options().no_cache is True
+
+
+def test_the_output_directory_is_taken_from_the_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("SKNM_EXAMPLES_OUTPUT_DIR", str(tmp_path / "elsewhere"))
+    assert common.options().output_dir == tmp_path / "elsewhere"
+
+
+def test_an_empty_output_directory_means_the_default(monkeypatch):
+    """An exported-but-empty variable is how a shell spells "unset", and must read as one."""
+    monkeypatch.setenv("SKNM_EXAMPLES_OUTPUT_DIR", "")
+    assert common.options().output_dir == common.FIGURE_DIR
+
+
+@pytest.mark.parametrize("value", ["1", "true", "TRUE", "True", "yes", "on"])
+def test_a_flag_is_set_by_any_of_the_usual_spellings(monkeypatch, value):
+    monkeypatch.setenv("SKNM_EXAMPLES_FULL", value)
+    assert common.options().full is True
+
+
+@pytest.mark.parametrize("value", ["0", "false", "FALSE", "no", "off", ""])
+def test_a_flag_is_cleared_by_any_of_the_usual_spellings(monkeypatch, value):
+    monkeypatch.setenv("SKNM_EXAMPLES_FULL", value)
+    assert common.options().full is False
+
+
+@pytest.mark.parametrize("name", ["SKNM_EXAMPLES_FULL", "SKNM_EXAMPLES_NO_CACHE"])
+def test_a_flag_that_cannot_be_read_as_a_boolean_is_refused(monkeypatch, name):
+    """Silently reading a misspelling as false would run the wrong sweep and say nothing."""
+    monkeypatch.setenv(name, "flase")
+    with pytest.raises(ValueError, match=name):
+        common.options()
+
+
+def test_the_refusal_quotes_the_value_it_could_not_read(monkeypatch):
+    monkeypatch.setenv("SKNM_EXAMPLES_FULL", "sometimes")
+    with pytest.raises(ValueError, match="sometimes"):
+        common.options()
+
+
+@pytest.mark.parametrize("value", [" 1 ", "1\n", "\ttrue "])
+def test_a_flag_is_read_through_the_whitespace_a_shell_leaves_behind(monkeypatch, value):
+    monkeypatch.setenv("SKNM_EXAMPLES_FULL", value)
+    assert common.options().full is True
+
+
+def test_an_output_directory_of_only_whitespace_means_the_default(monkeypatch):
+    monkeypatch.setenv("SKNM_EXAMPLES_OUTPUT_DIR", "   ")
+    assert common.options().output_dir == common.FIGURE_DIR
+
+
+def test_every_option_has_a_variable_that_sets_it(monkeypatch):
+    """The names the scripts document are the names `options` reads, with nothing left over."""
+    assert set(common.OPTION_VARIABLES) == {
+        "SKNM_EXAMPLES_FULL",
+        "SKNM_EXAMPLES_NO_CACHE",
+        "SKNM_EXAMPLES_OUTPUT_DIR",
+    }
 
 
 # --------------------------------------------------------------------------------------

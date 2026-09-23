@@ -11,7 +11,8 @@ times slower, why the snapshots are in seconds rather than milliseconds, and why
 SKNM(u_e=0) is indistinguishable from KNM here. The figure prints the ratio and the measured
 difference.
 
-Cheap enough that ``--full`` changes nothing: there is no sweep to reduce, only two runs.
+Cheap enough that ``SKNM_EXAMPLES_FULL`` changes nothing: there is no sweep to reduce, only
+two runs.
 
     python examples/fig10_beta_travelling_wave.py
 """
@@ -55,7 +56,7 @@ def snapshots(setup: common.BetaSetup, variant: Variant) -> np.ndarray:
     return np.ascontiguousarray(result.v[:, wanted].T)
 
 
-def draw(setup, recorded, stem, args):
+def draw(setup, recorded, stem, options):
     """Write one snapshot figure, one row per model, sharing a single colour scale."""
     potentials = np.stack(list(recorded.values()))
     low, high = float(potentials.min()), float(potentials.max())
@@ -77,7 +78,7 @@ def draw(setup, recorded, stem, args):
                 axis.set_ylabel(plotting.SERIES_LABEL[variant], fontsize=11, color=plotting.INK)
     plotting.colour_scale(figure, image, grid, "membrane potential (mV)")
 
-    return common.write_figure(figure, args.output_dir, stem)
+    return common.write_figure(figure, options.output_dir, stem)
 
 
 def report(setup, recorded):
@@ -105,16 +106,16 @@ def report(setup, recorded):
 
 
 def main() -> None:
-    args = common.parse_args(__doc__.splitlines()[0])
+    options = common.options()
     setup = common.BetaSetup()
-    cache = common.ResultCache("fig10", enabled=not args.no_cache)
+    cache = common.ResultCache("fig10", enabled=not options.no_cache)
 
     recorded = {}
     for variant in VARIANTS:
         label = setup.label(variant=variant, quantity="snapshots")
         recorded[variant] = cache.compute(label, lambda v=variant: snapshots(setup, v))
 
-    draw(setup, recorded, "fig10_beta_travelling_wave", args)
+    draw(setup, recorded, "fig10_beta_travelling_wave", options)
     report(setup, recorded)
 
 

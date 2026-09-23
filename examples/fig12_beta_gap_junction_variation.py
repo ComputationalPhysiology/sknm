@@ -18,7 +18,10 @@ added**, and computing it separately would mean running the other two models twi
 The sweep uses the reference implementation's own draws, committed under `data/`, because a
 seeded draw moves this sheet's velocity by 20% at ``gamma = 1``.
 
-    python examples/fig12_beta_gap_junction_variation.py [--full]
+    python examples/fig12_beta_gap_junction_variation.py
+
+Set ``SKNM_EXAMPLES_FULL=1`` to sweep the paper's full sample rather than every other
+point of it.
 """
 
 from __future__ import annotations
@@ -34,10 +37,10 @@ FIGURE_S1_VARIANTS = (Variant.KNM, Variant.SKNM, Variant.SKNM_UE0)
 
 
 def main() -> None:
-    args = common.parse_args(__doc__.splitlines()[0])
-    variations = common.sample(common.GAP_JUNCTION_VARIATIONS, args)
+    options = common.options()
+    variations = common.sample(common.GAP_JUNCTION_VARIATIONS, options)
     cache = common.ResultCache(
-        f"fig12-{'full' if args.full else 'fast'}", enabled=not args.no_cache
+        f"fig12-{'full' if options.full else 'fast'}", enabled=not options.no_cache
     )
 
     velocities: dict[tuple[float, float, Variant], float] = {}
@@ -58,7 +61,7 @@ def main() -> None:
         ("figS1_beta_gap_junction_variation", FIGURE_S1_VARIANTS),
     ):
         figure = _draw(variations, velocities, variants)
-        common.write_figure(figure, args.output_dir, stem)
+        common.write_figure(figure, options.output_dir, stem)
 
     common.print_table(
         [

@@ -60,13 +60,13 @@ def snapshots(setup: bidomain.BidomainSetup, model: str) -> np.ndarray:
 
 
 def main() -> None:
-    args = common.parse_args(__doc__.splitlines()[0])
+    options = common.options()
     if not bidomain.available():
         print(bidomain.REQUIREMENT)
         return
 
     setup = bidomain.BidomainSetup()
-    cache = common.ResultCache("fig06", enabled=not args.no_cache)
+    cache = common.ResultCache("fig06", enabled=not options.no_cache)
 
     recorded = {}
     for model in MODELS:
@@ -88,7 +88,7 @@ def main() -> None:
                 axis.set_ylabel(MODEL_LABEL[model], fontsize=11, color=plotting.INK)
     plotting.colour_scale(figure, image, grid, "membrane potential (mV)")
 
-    common.write_figure(figure, args.output_dir, "fig06_continuum_travelling_wave")
+    common.write_figure(figure, options.output_dir, "fig06_continuum_travelling_wave")
 
     difference = np.abs(recorded["bidomain"] - recorded["monodomain"])
     common.print_table(

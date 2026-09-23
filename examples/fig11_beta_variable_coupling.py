@@ -15,7 +15,8 @@ The spread uses the reference implementation's own draws, committed under `data/
 cardiac sheet, a seeded draw would not do: this sheet has 420 connections and an 8-cell
 conduction path, so the choice of draws moves the wave by 20%.
 
-Cheap enough that ``--full`` changes nothing: there is no sweep to reduce, only two runs.
+Cheap enough that ``SKNM_EXAMPLES_FULL`` changes nothing: there is no sweep to reduce, only
+two runs.
 
     python examples/fig11_beta_variable_coupling.py
 """
@@ -32,16 +33,16 @@ DELTA_E = 0.02
 
 
 def main() -> None:
-    args = common.parse_args(__doc__.splitlines()[0])
+    options = common.options()
     setup = common.BetaSetup(gamma=GAMMA, delta_e=DELTA_E)
-    cache = common.ResultCache("fig11", enabled=not args.no_cache)
+    cache = common.ResultCache("fig11", enabled=not options.no_cache)
 
     recorded = {}
     for variant in fig10.VARIANTS:
         label = setup.label(variant=variant, quantity="snapshots")
         recorded[variant] = cache.compute(label, lambda v=variant: fig10.snapshots(setup, v))
 
-    fig10.draw(setup, recorded, "fig11_beta_variable_coupling", args)
+    fig10.draw(setup, recorded, "fig11_beta_variable_coupling", options)
     fig10.report(setup, recorded)
 
 

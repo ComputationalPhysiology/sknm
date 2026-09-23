@@ -6,7 +6,8 @@ relates the extracellular and intracellular conductance of all of them and the a
 SKNM is derived from holds exactly. The two rows should be indistinguishable, and the figure
 prints how far apart they actually are.
 
-Cheap enough that ``--full`` changes nothing: there is no sweep to reduce, only two runs.
+Cheap enough that ``SKNM_EXAMPLES_FULL`` changes nothing: there is no sweep to reduce, only
+two runs.
 
     python examples/fig02_travelling_wave.py
 """
@@ -51,9 +52,9 @@ def snapshots(setup: common.Setup, variant: Variant) -> np.ndarray:
 
 
 def main() -> None:
-    args = common.parse_args(__doc__.splitlines()[0])
+    options = common.options()
     setup = common.Setup()
-    cache = common.ResultCache("fig02", enabled=not args.no_cache)
+    cache = common.ResultCache("fig02", enabled=not options.no_cache)
 
     recorded = {}
     for variant in VARIANTS:
@@ -76,7 +77,7 @@ def main() -> None:
                 axis.set_ylabel(plotting.SERIES_LABEL[variant], fontsize=11, color=plotting.INK)
     plotting.colour_scale(figure, image, grid, "membrane potential (mV)")
 
-    common.write_figure(figure, args.output_dir, "fig02_travelling_wave")
+    common.write_figure(figure, options.output_dir, "fig02_travelling_wave")
 
     difference = np.abs(recorded[Variant.KNM] - recorded[Variant.SKNM])
     common.print_table(

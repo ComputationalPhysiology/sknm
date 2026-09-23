@@ -19,7 +19,10 @@ neither can be computed from the other.
 
 Needs dolfinx and fenicsx-beat for the right panel; see `bidomain.py`.
 
-    python examples/fig09_continuum_sources_of_difference.py [--full]
+    python examples/fig09_continuum_sources_of_difference.py
+
+Set ``SKNM_EXAMPLES_FULL=1`` to sweep the paper's full sample rather than every other
+point of it.
 """
 
 from __future__ import annotations
@@ -66,14 +69,14 @@ def extracellular_range(setup: bidomain.BidomainSetup) -> float:
 
 
 def main() -> None:
-    args = common.parse_args(__doc__.splitlines()[0])
+    options = common.options()
     if not bidomain.available():
         print(bidomain.REQUIREMENT)
         return
 
-    fractions = common.sample(common.VOLUME_FRACTIONS, args)
+    fractions = common.sample(common.VOLUME_FRACTIONS, options)
     cache = common.ResultCache(
-        f"fig09-{'full' if args.full else 'fast'}", enabled=not args.no_cache
+        f"fig09-{'full' if options.full else 'fast'}", enabled=not options.no_cache
     )
 
     misfits = [
@@ -114,7 +117,7 @@ def main() -> None:
     axes[1].set_ylabel("mV")
     axes[1].set_ylim(bottom=0.0)
 
-    common.write_figure(figure, args.output_dir, "fig09_continuum_sources_of_difference")
+    common.write_figure(figure, options.output_dir, "fig09_continuum_sources_of_difference")
 
     common.print_table(
         ["gamma", "F(lambda) (mS^2)"],

@@ -15,7 +15,10 @@ the field is represented exactly rather than averaged across a boundary.
 
 Needs dolfinx and fenicsx-beat; see `bidomain.py`.
 
-    python examples/fig08_continuum_gap_junction_variation.py [--full]
+    python examples/fig08_continuum_gap_junction_variation.py
+
+Set ``SKNM_EXAMPLES_FULL=1`` to sweep the paper's full sample rather than every other
+point of it.
 """
 
 from __future__ import annotations
@@ -28,14 +31,14 @@ MODELS = ("bidomain", "monodomain")
 
 
 def main() -> None:
-    args = common.parse_args(__doc__.splitlines()[0])
+    options = common.options()
     if not bidomain.available():
         print(bidomain.REQUIREMENT)
         return
 
-    variations = common.sample(common.GAP_JUNCTION_VARIATIONS, args)
+    variations = common.sample(common.GAP_JUNCTION_VARIATIONS, options)
     cache = common.ResultCache(
-        f"fig08-{'full' if args.full else 'fast'}", enabled=not args.no_cache
+        f"fig08-{'full' if options.full else 'fast'}", enabled=not options.no_cache
     )
 
     velocities: dict[tuple[float, float, str], float] = {}
@@ -71,7 +74,7 @@ def main() -> None:
     )
     plotting.variant_legend(figure, MODELS)
 
-    common.write_figure(figure, args.output_dir, "fig08_continuum_gap_junction_variation")
+    common.write_figure(figure, options.output_dir, "fig08_continuum_gap_junction_variation")
 
     common.print_table(
         [
