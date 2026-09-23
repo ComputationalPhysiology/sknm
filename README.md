@@ -11,7 +11,9 @@ junctions, resolved per cell rather than homogenized into a continuum. See
 > **Status: early development.** The model, the solvers and the analysis are implemented, and
 > the scripts in [`examples/`](examples) reproduce the paper's figures for both of its cell
 > types — hiPSC-derived cardiomyocytes and pancreatic β cells. The homogenized bidomain and
-> monodomain comparisons (Figures 6–9) are out of scope.
+> monodomain comparisons (Figures 6–9) are reproduced too, through `dolfinx` and
+> `fenicsx-beat` rather than in `sknm` itself: those four scripts need both installed and
+> report what is missing when they are not.
 
 ## Installation
 

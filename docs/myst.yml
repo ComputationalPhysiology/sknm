@@ -1,0 +1,33 @@
+version: 1
+
+project:
+  title: sknm
+  description: >-
+    The Simplified Kirchhoff Network Model of Jaeger & Tveito (2023) in Python, with KNM and
+    SKNM(u_e=0) alongside it, and the paper's figures reproduced from the code that draws them.
+  github: https://github.com/ComputationalPhysiology/sknm
+  # Every page below examples/ is a notebook this build writes from the matching script in
+  # examples/, and executes. Nothing here is committed: a page is the output of running the
+  # code it shows, so it cannot drift from it.
+  toc:
+    - file: index.md
+    - title: The network models
+      children:
+        - file: examples/fig02_travelling_wave.ipynb
+        - file: examples/fig03_anisotropy.ipynb
+        - file: examples/fig04_gap_junction_variation.ipynb
+        - file: examples/fig05_sources_of_difference.ipynb
+    - title: The continuum models
+      children:
+        - file: examples/fig06_continuum_travelling_wave.ipynb
+        - file: examples/fig07_continuum_anisotropy.ipynb
+        - file: examples/fig08_continuum_gap_junction_variation.ipynb
+        - file: examples/fig09_continuum_sources_of_difference.ipynb
+    - title: The beta cell models
+      children:
+        - file: examples/fig10_beta_travelling_wave.ipynb
+        - file: examples/fig11_beta_variable_coupling.ipynb
+        - file: examples/fig12_beta_gap_junction_variation.ipynb
+
+site:
+  template: book-theme
