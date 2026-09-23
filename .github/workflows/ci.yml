@@ -69,8 +69,8 @@ jobs:
       - uses: actions/checkout@v5
       # `fenicsx-beat` 0.6 is where the bidomain model arrives; the tests check for the class
       # rather than the version, but pinning the floor gives a clearer failure than a skip.
-      # `examples` as well as `test`: some of these tests import the figure scripts, which
-      # import matplotlib.
+      # `examples` as well as `test`: these tests import `examples/bidomain.py`, whose
+      # neighbours pull in matplotlib.
       - run: python3 -m pip install --break-system-packages -e ".[test,examples]" "fenicsx-beat>=0.6"
       - run: python3 -m pytest tests/test_bidomain.py -v
 

@@ -11,11 +11,14 @@ its source rather than imported from the code under test.
 """
 
 import itertools
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 import bidomain
+
+EXAMPLES_DIR = Path(__file__).resolve().parents[1] / "examples"
 
 
 def test_the_intracellular_conductivity_is_the_reference_s_at_the_paper_s_default():
@@ -871,6 +874,9 @@ def test_both_quantities_converge_as_the_step_shrinks(table_s3_rows):
 # the scripts
 # --------------------------------------------------------------------------------------
 
+#: The figure scripts that need the continuum machinery, and so have to say so when it is
+#: absent. Read as text rather than imported: each is a linear script, so importing one runs
+#: the simulation it draws.
 FIGURE_SCRIPTS = (
     "fig06_continuum_travelling_wave",
     "fig07_continuum_anisotropy",
@@ -879,45 +885,115 @@ FIGURE_SCRIPTS = (
 )
 
 
-@pytest.mark.parametrize("name", FIGURE_SCRIPTS)
-def test_a_script_says_what_is_missing_rather_than_failing(name, monkeypatch, capsys):
-    """What every machine without dolfinx sees, which is most of the ones CI runs on.
+def test_a_missing_requirement_is_reported_rather_than_raised(monkeypatch, capsys):
+    """What a machine without dolfinx sees: the install line, and no traceback.
 
-    The example job runs every `fig*.py` there is and fails if one exits non-zero, so these
-    four have to come back quietly rather than raise or exit. Checked with `available` forced
-    to False, so that it is checked on a machine where the packages *are* installed too.
+    The scripts are linear, so there is no `main` to return early from; stopping means
+    raising `SystemExit`, and it has to carry a zero so that a reader running the file is
+    not told their machine is broken.
     """
-    pytest.importorskip("matplotlib")
-    import importlib
-
-    script = importlib.import_module(name)
     monkeypatch.setattr(bidomain, "available", lambda: False)
-    monkeypatch.setattr("sys.argv", [f"{name}.py"])
 
-    script.main()
+    with pytest.raises(SystemExit) as stop:
+        bidomain.require()
 
+    assert stop.value.code == 0
     assert bidomain.REQUIREMENT in capsys.readouterr().out
 
 
+def test_a_met_requirement_says_nothing_and_carries_on(monkeypatch, capsys):
+    monkeypatch.setattr(bidomain, "available", lambda: True)
+
+    assert bidomain.require() is None
+    assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize("name", FIGURE_SCRIPTS)
+def test_every_continuum_script_guards_itself_before_it_computes(name):
+    """A script that reached `build_mesh` without dolfinx would raise `NameError`, not speak.
+
+    The guard has to come before the first line that touches the machinery, so what is
+    checked is its position and not merely its presence.
+    """
+    source = (EXAMPLES_DIR / f"{name}.py").read_text()
+
+    assert "bidomain.require()" in source
+    first_use = min(
+        source.index(token)
+        for token in ("bidomain.BidomainSetup", "bidomain.run", "bidomain.snapshots")
+        if token in source
+    )
+    assert source.index("bidomain.require()") < first_use
+
+
 @needs_dolfinx
-def test_the_snapshots_are_taken_at_the_times_the_figure_names():
+def test_the_snapshots_are_taken_at_the_times_asked_for():
     """Figure 6 reads the sheet at three fixed times, and nothing else checks that it did.
 
     A run stops when the wave reaches the far probe, which is before the last snapshot time,
-    so the script has to hold it open; a callback that fired on the wrong step, or a run that
+    so `snapshots` has to hold it open; a callback that fired on the wrong step, or a run that
     ended early, would hand the figure two frames and a repeat rather than three.
     """
-    pytest.importorskip("matplotlib")
-    import fig06_continuum_travelling_wave as fig06
-
     setup = bidomain.BidomainSetup(**COARSE)
-    frames = fig06.snapshots(setup, "monodomain")
+    times = (25.0, 30.0, 35.0)
+
+    frames = bidomain.snapshots(setup, "monodomain", times)
 
     nx, ny = setup.elements()
-    assert frames.shape == (len(fig06.SNAPSHOT_TIMES), ny + 1, nx + 1)
+    assert frames.shape == (len(times), ny + 1, nx + 1)
     assert np.isfinite(frames).all()
     # The sheet is at rest at the first time and depolarized somewhere by the last, and no two
     # frames are the same moment twice.
     assert frames[0].max() > frames[0].min()
     for earlier, later in itertools.pairwise(frames):
         assert not np.allclose(earlier, later)
+
+
+@needs_dolfinx
+def test_a_snapshot_is_the_sheet_at_the_moment_it_names():
+    """Which step a time is caught on, anchored against the run rather than against itself.
+
+    The oracle is a run that keeps every step and then picks the one nearest the time asked
+    for — a different rule from the half-step window `snapshots` uses, so a window that
+    slipped by a step would show here and nowhere else.
+    """
+    setup = bidomain.BidomainSetup(**COARSE)
+    target = 25.0
+
+    seen = {}
+
+    def keep(t, pde):
+        seen[t] = bidomain.to_grid(setup, pde.V, pde.v.x.array.copy())
+
+    bidomain.run(setup, "monodomain", callback=keep, minimum_time=target)
+    nearest = min(seen, key=lambda t: abs(t - target))
+
+    frame = bidomain.snapshots(setup, "monodomain", (target,))[0]
+
+    np.testing.assert_array_equal(frame, seen[nearest])
+
+
+@needs_dolfinx
+def test_a_snapshot_after_the_wave_has_landed_still_gets_taken():
+    """A run stops when the wave reaches the far probe, which is before the sheet is done.
+
+    Without holding the run open, a snapshot asked for after that moment is never captured,
+    and the figure loses a panel.
+    """
+    setup = bidomain.BidomainSetup(**COARSE)
+    unheld = bidomain.run(setup, "monodomain")
+    late = unheld.end_time + 5.0
+    assert late < setup.t_end, "the sheet must still be running at the time asked for"
+
+    frames = bidomain.snapshots(setup, "monodomain", (late,))
+
+    assert frames.shape[0] == 1
+
+
+@needs_dolfinx
+def test_a_run_too_short_for_the_snapshots_asked_for_is_refused():
+    """Silently returning fewer frames than asked for would draw a figure with a missing panel."""
+    setup = bidomain.BidomainSetup(**COARSE)
+
+    with pytest.raises(ValueError, match="900"):
+        bidomain.snapshots(setup, "monodomain", (25.0, 900.0))

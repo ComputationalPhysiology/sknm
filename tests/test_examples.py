@@ -188,6 +188,132 @@ def test_an_odd_length_sweep_is_not_given_its_last_point_twice():
 
 
 # --------------------------------------------------------------------------------------
+# the snapshots the wave figures are drawn from
+#
+# Three scripts draw a sheet at a series of fixed times, and each is a linear page rather
+# than an importable module, so what they share lives here rather than in one of them.
+# --------------------------------------------------------------------------------------
+
+SMALL = dict(nx=3, ny=3, t_end=10.0)
+
+
+def test_a_snapshot_is_recorded_for_every_time_asked_for():
+    setup = common.Setup(**SMALL)
+
+    frames = common.snapshots(setup, Variant.KNM, (2.0, 4.0, 6.0), 2.0)
+
+    assert frames.shape == (3, setup.nx * setup.ny)
+    assert np.isfinite(frames).all()
+
+
+def test_a_snapshot_is_taken_at_the_nearest_recorded_moment():
+    """A time given with floating point slop still resolves to the sample it means.
+
+    The last time asked for sets how long the run is, so it is held fixed and only the
+    first one is nudged, by less than half a step.
+    """
+    setup = common.Setup(**SMALL)
+
+    nudged = common.snapshots(setup, Variant.KNM, (4.0 + 0.4 * setup.dt, 6.0), 2.0)
+    exact = common.snapshots(setup, Variant.KNM, (4.0, 6.0), 2.0)
+
+    np.testing.assert_array_equal(nudged[0], exact[0])
+
+
+def test_the_snapshots_come_back_in_the_order_they_were_asked_for():
+    """Asked for in descending order, so that sorting the moments would be visible."""
+    setup = common.Setup(**SMALL)
+
+    ascending = common.snapshots(setup, Variant.KNM, (2.0, 6.0), 2.0)
+    descending = common.snapshots(setup, Variant.KNM, (6.0, 2.0), 2.0)
+
+    np.testing.assert_array_equal(ascending[0], descending[1])
+    np.testing.assert_array_equal(ascending[1], descending[0])
+    assert not np.array_equal(ascending[0], ascending[1])
+
+
+def test_a_moment_no_sample_lands_on_is_refused():
+    """A recording interval that does not divide the times asked for would draw panels
+    labelled with one moment and computed at another, which nothing downstream could see."""
+    setup = common.Setup(**SMALL)
+
+    with pytest.raises(ValueError, match=r"3\.0"):
+        common.snapshots(setup, Variant.KNM, (3.0, 6.0), 4.0)
+
+
+def test_the_snapshot_report_prints_a_row_for_every_moment(capsys):
+    setup = common.Setup(**SMALL)
+    times = (2.0, 4.0)
+    recorded = {v: common.snapshots(setup, v, times, 2.0) for v in (Variant.KNM, Variant.SKNM)}
+
+    common.snapshot_report(recorded, ["2 ms", "4 ms"], (Variant.KNM, Variant.SKNM), "t")
+
+    printed = capsys.readouterr().out
+    assert printed.count("2 ms") == 1
+    assert printed.count("4 ms") == 1
+
+
+def test_the_snapshot_report_names_the_models_in_the_order_it_was_given_them(capsys):
+    setup = common.Setup(**SMALL)
+    recorded = {v: common.snapshots(setup, v, (2.0,), 2.0) for v in (Variant.KNM, Variant.SKNM)}
+
+    common.snapshot_report(recorded, ["2 ms"], (Variant.SKNM, Variant.KNM), "t")
+
+    header = capsys.readouterr().out.splitlines()[0]
+    assert header.index("SKNM min") < header.index("KNM min")
+    assert "max |SKNM - KNM|" in header
+
+
+def test_the_snapshot_report_measures_one_model_against_the_other(capsys):
+    """Differencing a model with itself would print a column of exact zeros and read as
+    perfect agreement."""
+    setup = common.Setup(**SMALL)
+    variants = (Variant.KNM, Variant.SKNM)
+    recorded = {v: common.snapshots(setup, v, (2.0, 4.0), 2.0) for v in variants}
+    recorded[Variant.SKNM] = recorded[Variant.SKNM] + 1.0
+
+    common.snapshot_report(recorded, ["2 ms", "4 ms"], variants, "t")
+
+    assert "0.00e+00" not in capsys.readouterr().out
+
+
+def test_the_snapshot_figure_has_a_panel_for_every_model_and_moment():
+    setup = common.Setup(**SMALL)
+    titles = ["2 ms", "4 ms", "6 ms"]
+    variants = (Variant.KNM, Variant.SKNM)
+    recorded = {v: common.snapshots(setup, v, (2.0, 4.0, 6.0), 2.0) for v in variants}
+
+    figure = common.snapshot_figure(setup, recorded, variants, titles)
+
+    # Two rows of three panels, plus the axis the shared colour scale is drawn into.
+    assert len(figure.axes) == len(variants) * len(titles) + 1
+
+
+def test_the_snapshot_figure_puts_a_moment_in_every_column_and_a_model_in_every_row():
+    """A transposed grid has the same number of panels, so only their labelling shows it."""
+    setup = common.Setup(**SMALL)
+    titles = ["2 ms", "4 ms", "6 ms"]
+    variants = (Variant.KNM, Variant.SKNM)
+    recorded = {v: common.snapshots(setup, v, (2.0, 4.0, 6.0), 2.0) for v in variants}
+
+    figure = common.snapshot_figure(setup, recorded, variants, titles)
+
+    assert [a.get_title() for a in figure.axes if a.get_title()] == titles
+
+
+def test_every_panel_of_a_snapshot_figure_is_on_one_colour_scale():
+    """Drawn to their own ranges, two sheets differing by a rounding error look different."""
+    setup = common.Setup(**SMALL)
+    variants = (Variant.KNM, Variant.SKNM)
+    recorded = {v: common.snapshots(setup, v, (2.0, 6.0), 2.0) for v in variants}
+
+    figure = common.snapshot_figure(setup, recorded, variants, ["2 ms", "6 ms"])
+
+    scales = {image.get_clim() for axis in figure.axes for image in axis.images}
+    assert len(scales) == 1
+
+
+# --------------------------------------------------------------------------------------
 # the cache key
 # --------------------------------------------------------------------------------------
 

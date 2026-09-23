@@ -28,7 +28,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -564,6 +564,150 @@ class ResultCache:
         if self.enabled:
             self._save()
         return value
+
+
+def snapshots(
+    setup: Any, variant: Variant, times: Sequence[float], interval: float
+) -> npt.NDArray[np.float64]:
+    """Record the membrane potential across a sheet at each of a series of times.
+
+    Parameters
+    ----------
+    setup : Setup or BetaSetup
+        The sheet to run.
+    variant : Variant
+        Which model to solve.
+    times : sequence of float
+        When to read the sheet, in ms.
+    interval : float
+        How often to record, in ms. Chosen so that a sample lands on each of `times`.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(len(times), n_cells)``, in mV, in the order `times` asks for.
+    """
+    simulation = setup.simulation(variant)
+    result = simulation.run(max(times) * ms, record=("v",), record_every=interval * ms)
+    wanted = [int(np.argmin(np.abs(result.t - time))) for time in times]
+    missed = [
+        time
+        for time, index in zip(times, wanted, strict=True)
+        if abs(result.t[index] - time) > 0.5 * setup.dt
+    ]
+    if missed:
+        raise ValueError(
+            f"no sample was recorded within half a step of {missed} ms; a recording interval "
+            f"of {interval} ms does not land on every time asked for"
+        )
+    return np.ascontiguousarray(result.v[:, wanted].T)
+
+
+def snapshot_figure(
+    setup: Any,
+    recorded: Mapping[Variant, npt.NDArray[np.float64]],
+    variants: Sequence[Variant],
+    titles: Sequence[str],
+    *,
+    width: float | None = None,
+    height: float | None = None,
+) -> Any:
+    """Build one grid of sheet snapshots, a row per model, sharing a single colour scale.
+
+    One scale across every panel is what makes the rows comparable: drawn to their own
+    ranges, two sheets that differ by a rounding error would look different.
+
+    Parameters
+    ----------
+    setup : Setup or BetaSetup
+        The sheet the snapshots were taken on, for its shape.
+    recorded : mapping of Variant to numpy.ndarray
+        One array of shape ``(len(titles), n_cells)`` per model.
+    variants : sequence of Variant
+        The models to draw, one row each, in order.
+    titles : sequence of str
+        The column headings, one per snapshot.
+    width, height : float, optional
+        Figure size, by default `plotting.panel_grid`'s own.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The figure, unwritten.
+    """
+    # Imported here rather than at the top of the module: `plotting` pulls in matplotlib,
+    # which is an examples extra, and everything else in this module works without it.
+    import plotting
+
+    potentials = np.stack([recorded[variant] for variant in variants])
+    low, high = float(potentials.min()), float(potentials.max())
+
+    plotting.use_house_style()
+    size = {}
+    if width is not None:
+        size["width"] = width
+    if height is not None:
+        size["height"] = height
+    figure, grid = plotting.panel_grid(len(variants), len(titles), **size)
+    image = None
+    for row, variant in enumerate(variants):
+        for column, title in enumerate(titles):
+            axis = grid[row][column]
+            sheet = recorded[variant][column].reshape(setup.ny, setup.nx)
+            image = plotting.show_sheet(axis, sheet, low=low, high=high)
+            if row == 0:
+                axis.set_title(title)
+            if column == 0:
+                axis.set_ylabel(plotting.SERIES_LABEL[variant], fontsize=11, color=plotting.INK)
+    plotting.colour_scale(figure, image, grid, "membrane potential (mV)")
+    return figure
+
+
+def snapshot_report(
+    recorded: Mapping[Variant, npt.NDArray[np.float64]],
+    titles: Sequence[str],
+    variants: Sequence[Variant],
+    time_header: str,
+) -> None:
+    """Print each model's range at each snapshot, and how far apart two models are.
+
+    The figure shows two rows that should be indistinguishable; only a number says how
+    indistinguishable they actually are.
+
+    Parameters
+    ----------
+    recorded : mapping of Variant to numpy.ndarray
+        One array of shape ``(len(titles), n_cells)`` per model.
+    titles : sequence of str
+        The moment each snapshot was taken at, as it should be printed.
+    variants : sequence of Variant
+        Exactly two models: the ones the difference column is taken between.
+    time_header : str
+        The heading of the first column.
+    """
+    first, second = variants
+    difference = np.abs(recorded[first] - recorded[second])
+    print_table(
+        [
+            time_header,
+            f"{first.name} min",
+            f"{first.name} max",
+            f"{second.name} min",
+            f"{second.name} max",
+            f"max |{first.name} - {second.name}|",
+        ],
+        [
+            [
+                title,
+                float(recorded[first][index].min()),
+                float(recorded[first][index].max()),
+                float(recorded[second][index].min()),
+                float(recorded[second][index].max()),
+                f"{difference[index].max():.2e}",
+            ]
+            for index, title in enumerate(titles)
+        ],
+    )
 
 
 def write_figure(figure: Any, output_dir: Path, stem: str) -> Path:

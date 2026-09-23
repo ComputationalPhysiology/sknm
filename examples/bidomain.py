@@ -20,6 +20,7 @@ import guard so that both can be had -- and tested -- without a mesh.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -64,6 +65,24 @@ def available() -> bool:
         job that runs every script must not fail on it.
     """
     return _AVAILABLE
+
+
+def require() -> None:
+    """Stop with a message when the continuum machinery is missing.
+
+    The figure scripts are linear, so there is no function body to return early from;
+    declining to run means leaving the interpreter.
+
+    Raises
+    ------
+    SystemExit
+        With code zero, when `available` is false. Zero because a machine without `dolfinx`
+        is not a broken machine, and because a non-zero exit would fail any job running the
+        script rather than letting it report what is absent.
+    """
+    if not available():
+        print(REQUIREMENT)
+        raise SystemExit(0)
 
 
 #: Gap junction resistance between two cells with no variation applied, in kOhm. The
@@ -910,3 +929,44 @@ def to_grid(setup: BidomainSetup, space: Any, values: npt.ArrayLike) -> npt.NDAr
     grid = np.full((ny + 1, nx + 1), np.nan)
     grid[rows, columns] = np.asarray(values, dtype=np.float64)
     return grid
+
+
+def snapshots(setup: BidomainSetup, model: str, times: Sequence[float]) -> npt.NDArray[np.float64]:
+    """Record the membrane potential across the whole sheet at each of a series of times.
+
+    A run stops as soon as the wave reaches the far probe, which is earlier than the last
+    time a snapshot figure asks for, so the run is held open to the last of them.
+
+    Parameters
+    ----------
+    setup : BidomainSetup
+        The sheet to run.
+    model : {"bidomain", "monodomain"}
+        Which model to solve.
+    times : sequence of float
+        When to read the sheet, in ms, in increasing order. A time is caught on the step
+        whose end is within half a step of it.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(len(times), ny + 1, nx + 1)``, in mV, laid out as the grid.
+
+    Raises
+    ------
+    ValueError
+        If the run ended before a time was reached. Returning the frames that were captured
+        would draw the figure with a panel missing or a moment repeated.
+    """
+    remaining = list(times)
+    frames = []
+
+    def capture(t: float, pde: Any) -> None:
+        if remaining and t >= remaining[0] - 0.5 * setup.dt:
+            remaining.pop(0)
+            frames.append(to_grid(setup, pde.V, pde.v.x.array.copy()))
+
+    run(setup, model, callback=capture, minimum_time=max(times))
+    if remaining:
+        raise ValueError(f"the run ended before {remaining} ms")
+    return np.stack(frames)

@@ -1,100 +1,69 @@
-"""Figure 2: a travelling wave across 40x40 hiPSC-CMs, solved as KNM and as SKNM.
+# %% [markdown]
+# # Figure 2 — a travelling wave across 40x40 hiPSC-CMs
+#
+# Snapshots of the membrane potential at three points in time, one row per model. This is the
+# paper's default set-up, where every connection has the same conductances, so a single ratio
+# relates the extracellular and intracellular conductance of all of them and the assumption
+# SKNM is derived from holds exactly.
+#
+# The two rows should be indistinguishable. The point of the page is the number at the bottom,
+# which says how indistinguishable they actually are.
+#
+# This page is also the script `examples/fig02_travelling_wave.py`, and runs either way. It is
+# cheap enough that `SKNM_EXAMPLES_FULL` changes nothing: there is no sweep to reduce, only
+# two runs.
 
-Snapshots of the membrane potential at three points in time, one row per model. This is the
-paper's default set-up, where every connection has the same conductances, so a single ratio
-relates the extracellular and intracellular conductance of all of them and the assumption
-SKNM is derived from holds exactly. The two rows should be indistinguishable, and the figure
-prints how far apart they actually are.
-
-Cheap enough that ``SKNM_EXAMPLES_FULL`` changes nothing: there is no sweep to reduce, only
-two runs.
-
-    python examples/fig02_travelling_wave.py
-"""
-
-from __future__ import annotations
-
-import numpy as np
+# %%
+import matplotlib.pyplot as plt
 
 import common
-import plotting
 from sknm import Variant
-from sknm.units import ms
 
-#: The paper's three snapshot times, and the interval that lands a sample on each of them.
+#: The paper's three snapshot times in ms, and the interval that lands a sample on each.
 SNAPSHOT_TIMES = (25.0, 30.0, 35.0)
 SNAPSHOT_INTERVAL = 5.0
 
 VARIANTS = (Variant.KNM, Variant.SKNM)
 
+options = common.options()
+setup = common.Setup()
 
-def snapshots(setup: common.Setup, variant: Variant) -> np.ndarray:
-    """Record the membrane potential at each of the paper's three snapshot times.
+# %% [markdown]
+# ## The two runs
+#
+# One run per model over the paper's own 40x40 sheet, each recording the whole sheet at the
+# three snapshot times. Results are cached under `examples/results/`, so redrawing costs no
+# simulation.
 
-    Parameters
-    ----------
-    setup : common.Setup
-        The sheet to run.
-    variant : Variant
-        Which model to solve.
+# %%
+cache = common.ResultCache("fig02", enabled=not options.no_cache)
 
-    Returns
-    -------
-    numpy.ndarray
-        Shape ``(len(SNAPSHOT_TIMES), n_cells)``, in mV.
-    """
-    simulation = setup.simulation(variant)
-    result = simulation.run(
-        max(SNAPSHOT_TIMES) * ms, record=("v",), record_every=SNAPSHOT_INTERVAL * ms
-    )
-    wanted = [int(np.argmin(np.abs(result.t - time))) for time in SNAPSHOT_TIMES]
-    return np.ascontiguousarray(result.v[:, wanted].T)
-
-
-def main() -> None:
-    options = common.options()
-    setup = common.Setup()
-    cache = common.ResultCache("fig02", enabled=not options.no_cache)
-
-    recorded = {}
-    for variant in VARIANTS:
-        label = setup.label(variant=variant, quantity="snapshots")
-        recorded[variant] = cache.compute(label, lambda v=variant: snapshots(setup, v))
-
-    potentials = np.stack(list(recorded.values()))
-    low, high = float(potentials.min()), float(potentials.max())
-
-    plotting.use_house_style()
-    figure, grid = plotting.panel_grid(len(VARIANTS), len(SNAPSHOT_TIMES))
-    for row, variant in enumerate(VARIANTS):
-        for column, time in enumerate(SNAPSHOT_TIMES):
-            axis = grid[row][column]
-            sheet = recorded[variant][column].reshape(setup.ny, setup.nx)
-            image = plotting.show_sheet(axis, sheet, low=low, high=high)
-            if row == 0:
-                axis.set_title(f"t = {time:g} ms")
-            if column == 0:
-                axis.set_ylabel(plotting.SERIES_LABEL[variant], fontsize=11, color=plotting.INK)
-    plotting.colour_scale(figure, image, grid, "membrane potential (mV)")
-
-    common.write_figure(figure, options.output_dir, "fig02_travelling_wave")
-
-    difference = np.abs(recorded[Variant.KNM] - recorded[Variant.SKNM])
-    common.print_table(
-        ["t (ms)", "KNM min", "KNM max", "SKNM min", "SKNM max", "max |KNM - SKNM|"],
-        [
-            [
-                f"{time:g}",
-                float(recorded[Variant.KNM][index].min()),
-                float(recorded[Variant.KNM][index].max()),
-                float(recorded[Variant.SKNM][index].min()),
-                float(recorded[Variant.SKNM][index].max()),
-                f"{difference[index].max():.2e}",
-            ]
-            for index, time in enumerate(SNAPSHOT_TIMES)
-        ],
+recorded = {}
+for variant in VARIANTS:
+    label = setup.label(variant=variant, quantity="snapshots")
+    recorded[variant] = cache.compute(
+        label,
+        lambda v=variant: common.snapshots(setup, v, SNAPSHOT_TIMES, SNAPSHOT_INTERVAL),
     )
 
+# %% [markdown]
+# ## The figure
+#
+# Both rows are drawn to one colour scale. On scales of their own, two sheets differing by a
+# rounding error would look like two different results.
 
-if __name__ == "__main__":
-    main()
+# %%
+figure = common.snapshot_figure(
+    setup, recorded, VARIANTS, [f"t = {time:g} ms" for time in SNAPSHOT_TIMES]
+)
+common.write_figure(figure, options.output_dir, "fig02_travelling_wave")
+plt.show()
+
+# %% [markdown]
+# ## How far apart the rows are
+#
+# The last column is the whole claim: the largest difference between the two models at any
+# cell, at each moment drawn above.
+
+# %%
+common.snapshot_report(recorded, [f"{time:g}" for time in SNAPSHOT_TIMES], VARIANTS, "t (ms)")
