@@ -5,10 +5,17 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    # Weekly, for the figure scripts: they take about half an hour and reproduce published
-    # figures rather than guarding a change, so they do not belong on a pull request.
+    # Weekly. Nothing here is scheduled-only any more, but the documentation build executes
+    # every example against whatever the dolfinx image currently ships, so a run with no
+    # commit behind it is what catches the image moving underneath us.
     - cron: "0 5 * * 1"
   workflow_dispatch:
+
+# One deploy at a time, and never cancel one in flight: a half-published site is worse than
+# an out-of-date one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   lint:
@@ -37,27 +44,6 @@ jobs:
       # Coverage is reported, not gated.
       - run: pytest --cov=sknm --cov-report=term-missing
 
-  examples:
-    runs-on: ubuntu-latest
-    env:
-      MPLBACKEND: Agg
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - run: python -m pip install -e ".[examples]"
-      # Fast mode only (~2 min each); `--full` is for paper-exact runs, never CI.
-      # Only the `fig*` scripts are entry points: their neighbours are modules they import.
-      - name: Run example scripts
-        run: |
-          shopt -s nullglob
-          for script in examples/fig*.py; do
-            echo "::group::${script}"
-            python "${script}"
-            echo "::endgroup::"
-          done
-
   # The continuum models need dolfinx, which is not installable from PyPI, so this job runs in
   # the project's own container image. `sknm` itself does not depend on either package: the
   # scripts that do live in `examples/` and skip without them, which is what the other jobs
@@ -74,25 +60,79 @@ jobs:
       - run: python3 -m pip install --break-system-packages -e ".[test,examples]" "fenicsx-beat>=0.6"
       - run: python3 -m pytest tests/test_bidomain.py -v
 
-  # The figure scripts, which are minutes rather than seconds and so are not run per pull
-  # request. Fast mode only; `--full` is for reproducing the paper's own sample by hand.
-  bidomain-figures:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+  # The documentation site, which is also how the example scripts are exercised. Every page
+  # is one of them, converted to a notebook and executed, so a script that stopped running --
+  # or stopped drawing anything -- fails this job. It runs in the dolfinx container because
+  # four of the eleven pages need dolfinx and all of them execute.
+  docs:
     runs-on: ubuntu-latest
     container: ghcr.io/fenics/dolfinx/dolfinx:stable
     env:
-      MPLBACKEND: Agg
+      # An inline backend and an explicit `plt.show()` are what put the figures in the pages.
+      # Under Agg they are written to disk and the pages carry code with no picture.
+      MPLBACKEND: module://matplotlib_inline.backend_inline
+      # Where GitHub Pages serves the site from, for the static export's asset paths.
+      BASE_URL: /sknm
     steps:
       - uses: actions/checkout@v5
-      - run: python3 -m pip install --break-system-packages -e ".[examples,test]" "fenicsx-beat>=0.6"
-      - name: Run the continuum figure scripts
-        run: |
-          for script in examples/fig0[6-9]_*.py; do
-            echo "::group::${script}"
-            python3 "${script}"
-            echo "::endgroup::"
-          done
-      - uses: actions/upload-artifact@v4
+
+      # The Node that `pip install mystmd` bootstraps for itself is 20.0.0, which crashes the
+      # static export in `writePublicJson`. Supplying a newer one is what avoids that, and the
+      # crash would not appear until the first deploy.
+      - uses: actions/setup-node@v4
         with:
-          name: continuum-figures
-          path: examples/figures/
+          node-version: "22"
+
+      - run: python3 -m pip install --break-system-packages -e ".[examples]" "fenicsx-beat>=0.6" mystmd jupytext ipykernel jupyter-server
+
+      # Everything in one interpreter: the kernel MyST executes the notebooks in has to be the
+      # one `dolfinx` and `sknm` are installed in, not a bare python.
+      - run: python3 -m ipykernel install --user --name python3 --display-name "Python 3"
+
+      # A container job runs as root, and MyST's Jupyter server refuses to start as root
+      # without saying so -- the only symptom is "Jupyter server did not start", and the
+      # pages then build with no output at all.
+      - name: Let the Jupyter server run as root
+        run: |
+          mkdir -p ~/.jupyter
+          echo 'c.ServerApp.allow_root = True' > ~/.jupyter/jupyter_server_config.py
+
+      # MyST reads only `.md` and `.ipynb`; a percent-format `.py` in the project is ignored
+      # in silence. `--set-kernel` matters too: without a kernelspec MyST skips execution and
+      # says nothing.
+      - name: Convert the example scripts to notebooks
+        run: |
+          mkdir -p docs/examples
+          for script in examples/fig*.py; do
+            name="$(basename "${script}" .py)"
+            jupytext --to ipynb --set-kernel python3 --output "docs/examples/${name}.ipynb" "${script}"
+          done
+
+      # `--strict` is what makes a failing page fail the job. Without it a notebook that
+      # raised still builds a site, and the build reports success.
+      # The examples directory is appended to PYTHONPATH rather than replacing it: the
+      # container reaches dolfinx through PYTHONPATH, so overwriting it hides dolfinx.
+      - name: Build the site
+        working-directory: docs
+        run: PYTHONPATH="${GITHUB_WORKSPACE}/examples:${PYTHONPATH}" myst build --html --execute --strict
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+
+  # Deploying is a separate job so that it runs on the standard runner rather than inside the
+  # container, and only for a push to the default branch: a pull request builds the site to
+  # check that it builds, and publishes nothing.
+  docs-deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: docs
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
