@@ -196,6 +196,14 @@ def test_an_odd_length_sweep_is_not_given_its_last_point_twice():
 
 SMALL = dict(nx=3, ny=3, t_end=10.0)
 
+#: `snapshot_figure` is the only thing in this module that draws, and matplotlib arrives with
+#: the `examples` extra rather than `test`. Everything else here -- the sweeps, the cache keys
+#: and the snapshot arithmetic -- is checked on a machine without it.
+needs_matplotlib = pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None,
+    reason="matplotlib is an examples extra",
+)
+
 
 def test_a_snapshot_is_recorded_for_every_time_asked_for():
     setup = common.Setup(**SMALL)
@@ -277,6 +285,7 @@ def test_the_snapshot_report_measures_one_model_against_the_other(capsys):
     assert "0.00e+00" not in capsys.readouterr().out
 
 
+@needs_matplotlib
 def test_the_snapshot_figure_has_a_panel_for_every_model_and_moment():
     setup = common.Setup(**SMALL)
     titles = ["2 ms", "4 ms", "6 ms"]
@@ -289,6 +298,7 @@ def test_the_snapshot_figure_has_a_panel_for_every_model_and_moment():
     assert len(figure.axes) == len(variants) * len(titles) + 1
 
 
+@needs_matplotlib
 def test_the_snapshot_figure_puts_a_moment_in_every_column_and_a_model_in_every_row():
     """A transposed grid has the same number of panels, so only their labelling shows it."""
     setup = common.Setup(**SMALL)
@@ -301,6 +311,7 @@ def test_the_snapshot_figure_puts_a_moment_in_every_column_and_a_model_in_every_
     assert [a.get_title() for a in figure.axes if a.get_title()] == titles
 
 
+@needs_matplotlib
 def test_every_panel_of_a_snapshot_figure_is_on_one_colour_scale():
     """Drawn to their own ranges, two sheets differing by a rounding error look different."""
     setup = common.Setup(**SMALL)
