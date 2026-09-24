@@ -12,10 +12,10 @@ With ``D = diag(Cm * Am / dt)`` the capacitive diagonal, the three systems are
 - `Variant.SKNM`: the same, with ``D`` scaled by ``(1 + lam) / lam``
 - `Variant.KNM`: the block system
 
-  .. code-block:: text
-
-      [ D + L_i      L_i      ] [ v   ]   [ D v_prev ]
-      [   L_i     L_i + L_e   ] [ u_e ] = [    0     ]
+  ```text
+  [ D + L_i      L_i      ] [ v   ]   [ D v_prev ]
+  [   L_i     L_i + L_e   ] [ u_e ] = [    0     ]
+  ```
 
 where ``L_i`` and ``L_i + L_e`` are the network's two Laplacians.
 

@@ -4,13 +4,15 @@ Cheap enough to use wherever a membrane model is needed but its physiological de
 exercising the seam, network tests with analytic answers, and demonstrations. It carries no
 units and is not a cardiac model; use `sknm.membrane.base_model_IM` for anything physiological.
 
-.. math::
+$$
+\\frac{dv}{dt} = v - \\frac{v^3}{3} - w + I
+$$
 
-    \\frac{dv}{dt} = v - \\frac{v^3}{3} - w + I
+$$
+\\frac{dw}{dt} = \\varepsilon (v + a - b w)
+$$
 
-    \\frac{dw}{dt} = \\varepsilon (v + a - b w)
-
-where :math:`I` is the ``stim_amplitude`` parameter.
+where $I$ is the ``stim_amplitude`` parameter.
 """
 
 from __future__ import annotations

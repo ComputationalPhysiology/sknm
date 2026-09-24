@@ -7,12 +7,14 @@ cardiomyocyte model; `PBM`, the phantom bursting model of the pancreatic beta ce
 
 The two generated models differ in one way that matters to a caller. `base_model_IM` names its
 membrane potential ``V_m`` and integrates ``dV/dt = -I_tot``, so it has no capacitance to
-declare. `PBM` names it ``v`` and integrates ``dv/dt = -I / Cm``, so it does::
+declare. `PBM` names it ``v`` and integrates ``dv/dt = -I / Cm``, so it does:
 
-    from sknm.membrane import PBM, from_gotranx
-    from sknm.units import fF
+```python
+from sknm.membrane import PBM, from_gotranx
+from sknm.units import fF
 
-    model = from_gotranx(PBM, v_name="v", capacitance=5300 * fF)
+model = from_gotranx(PBM, v_name="v", capacitance=5300 * fF)
+```
 
 `sknm.presets.beta_membrane_model` builds exactly that, and is what to reach for rather than
 retyping the capacitance.

@@ -32,6 +32,26 @@ project:
         - file: examples/fig10_beta_travelling_wave.ipynb
         - file: examples/fig11_beta_variable_coupling.ipynb
         - file: examples/fig12_beta_gap_junction_variation.ipynb
+    # Written from the installed package at build time by `tools/generate_api_pages.py`, one
+    # page per module, nested the way the package is. Every public class, function and
+    # constant appears once, on the page for the module that defines it.
+    - title: API reference
+      children:
+        - file: api/sknm.md
+          children:
+            - file: api/sknm.analysis.md
+            - file: api/sknm.assembly.md
+            - file: api/sknm.linalg.md
+            - file: api/sknm.membrane.md
+              children:
+                - file: api/sknm.membrane.PBM.md
+                - file: api/sknm.membrane.base_model_IM.md
+                - file: api/sknm.membrane.fitzhugh_nagumo.md
+                - file: api/sknm.membrane.protocol.md
+            - file: api/sknm.network.md
+            - file: api/sknm.presets.md
+            - file: api/sknm.simulation.md
+            - file: api/sknm.units.md
 
 site:
   template: book-theme

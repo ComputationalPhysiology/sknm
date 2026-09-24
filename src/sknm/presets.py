@@ -4,15 +4,17 @@ Everything here is data from Jaeger & Tveito (2023) and its reference implementa
 behind names rather than left to be retyped: the cell sizes, the material constants, the sheet
 they are arranged in, where the stimulus goes and where the published numbers are measured. The
 general constructors in `sknm.network` take explicit geometry instead; this module is what to
-reach for when the intent is "the paper's simulation"::
+reach for when the intent is "the paper's simulation":
 
-    network = presets.hipsc_sheet(40, 40)
-    sim = Simulation(network, from_gotranx(base_model_IM), dt=0.02 * ms)
-    sim.set_parameter("stim_amplitude", presets.hipsc_stimulus_amplitude(40, 40))
+```python
+network = presets.hipsc_sheet(40, 40)
+sim = Simulation(network, from_gotranx(base_model_IM), dt=0.02 * ms)
+sim.set_parameter("stim_amplitude", presets.hipsc_stimulus_amplitude(40, 40))
 
-    network = presets.beta_sheet(15, 15)
-    sim = Simulation(network, presets.beta_membrane_model(), dt=0.02 * ms)
-    sim.set_parameter("gkatpbar", presets.beta_stimulus_conductance(15, 15))
+network = presets.beta_sheet(15, 15)
+sim = Simulation(network, presets.beta_membrane_model(), dt=0.02 * ms)
+sim.set_parameter("gkatpbar", presets.beta_stimulus_conductance(15, 15))
+```
 
 The two reference drivers are structurally identical and differ only in constants, so the two
 families here mirror one another. Four of those constants are easy to get wrong from the paper
@@ -323,9 +325,11 @@ def vary_conductances(network: CellNetwork, gamma: Any, draws: npt.ArrayLike) ->
     The draws are an argument rather than something this function makes, because the paper's
     sweep reuses **one** set across every value of `gamma` and every variant: that is what makes
     the resulting curves comparable point for point rather than each a different network. Make
-    them once, with a seed::
+    them once, with a seed:
 
-        draws = numpy.random.default_rng(0).random(network.n_connections)
+    ```python
+    draws = numpy.random.default_rng(0).random(network.n_connections)
+    ```
 
     The reference's own draws, if you have them, are in `random_picks/gj_scale_x.txt` and
     `gj_scale_y.txt`, concatenated in that order: `sheet` numbers its connections x-direction
@@ -389,10 +393,12 @@ def hipsc_cell_size(alpha: Any = 1.0) -> tuple[Any, Any]:
     """Cell length and width at an anisotropy factor, holding the cell's volume fixed.
 
     Making a cell longer makes it correspondingly narrower, so that its intracellular volume
-    stays at the roughly 4 pL a hiPSC-CM has::
+    stays at the roughly 4 pL a hiPSC-CM has:
 
-        ly = round(cbrt(4000 um^3 / alpha) * 2) / 2   um, to the nearest half micrometre
-        lx = alpha * ly
+    ```text
+    ly = round(cbrt(4000 um^3 / alpha) * 2) / 2   um, to the nearest half micrometre
+    lx = alpha * ly
+    ```
 
     The rounding is why the volume comes out between 3.9 and 4.1 pL rather than exactly 4, and
     it is what makes the five sizes in `CELL_DIMENSIONS` come out at the round numbers they do.

@@ -95,7 +95,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: python -m pip install -e ".[examples]" mystmd jupytext ipykernel jupyter-server
+      - run: python -m pip install -e ".[docs]"
 
       # Everything in one interpreter: the kernel MyST executes the notebooks in has to be the
       # one `sknm` is installed in, not a bare python.
@@ -123,6 +123,21 @@ jobs:
           pages="$(ls docs/examples | wc -l)"
           test "${scripts}" -eq "${pages}" || {
             echo "converted ${pages} pages from ${scripts} scripts"; exit 1; }
+
+      # The reference is written from the installed package rather than kept by hand, so it
+      # describes the code in the commit that built it. One page per module and one table of
+      # contents entry per page: MyST does not complain about an entry with no file behind
+      # it, and a page with no entry is simply absent from the site, so both are counted.
+      - name: Write the API reference pages
+        run: |
+          python tools/generate_api_pages.py docs/api
+          pages="$(ls docs/api | wc -l)"
+          modules="$(find src/sknm -name '*.py' | wc -l)"
+          listed="$(grep -c 'file: api/' docs/myst.yml)"
+          test "${pages}" -eq "${modules}" || {
+            echo "wrote ${pages} pages for ${modules} modules"; exit 1; }
+          test "${pages}" -eq "${listed}" || {
+            echo "${pages} pages, ${listed} of them in the table of contents"; exit 1; }
 
       # `--strict` is what makes a failing page fail the job. Without it a notebook that
       # raised still builds a site, and the build reports success.

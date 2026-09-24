@@ -3,10 +3,12 @@
 A simulation factorizes its operator once and then solves against the same matrix at every
 step, because the conductances do not change with time. That two-phase shape -- an expensive
 preparation followed by many cheap solves -- is what `factorize` expresses, and it is the only
-thing a solver has to provide::
+thing a solver has to provide:
 
-    solve = DirectSolver().factorize(operator.matrix)
-    x = solve(operator.rhs(v_prev))
+```python
+solve = DirectSolver().factorize(operator.matrix)
+x = solve(operator.rhs(v_prev))
+```
 
 `DirectSolver` is the default. All three systems are symmetric positive definite, so a sparse
 LU has no tolerance to tune and returns the same answer every run; the iterative solvers save
