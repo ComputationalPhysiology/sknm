@@ -60,58 +60,72 @@ jobs:
       - run: python3 -m pip install --break-system-packages -e ".[test,examples]" "fenicsx-beat>=0.6"
       - run: python3 -m pytest tests/test_bidomain.py -v
 
-  # The documentation site, which is also how the example scripts are exercised. Every page
-  # is one of them, converted to a notebook and executed, so a script that stopped running --
-  # or stopped drawing anything -- fails this job. It runs in the dolfinx container because
-  # four of the eleven pages need dolfinx and all of them execute.
+  # The documentation site, which is also how the network and beta example scripts are
+  # exercised: each is converted to a notebook and executed, so a script that stopped running
+  # -- or stopped drawing anything -- fails a pull request.
+  #
+  # The four continuum pages are not executed here. They need dolfinx and sweep for hours,
+  # which no pull request can carry; they are rendered as markdown from the same scripts and
+  # show figures committed under docs/figures/, which `continuum-figures` below regenerates on
+  # a schedule so that they cannot quietly disagree with the code. This job therefore needs no
+  # container and no dolfinx.
   docs:
     runs-on: ubuntu-latest
-    container: ghcr.io/fenics/dolfinx/dolfinx:stable
     env:
       # An inline backend and an explicit `plt.show()` are what put the figures in the pages.
       # Under Agg they are written to disk and the pages carry code with no picture.
       MPLBACKEND: module://matplotlib_inline.backend_inline
       # Where GitHub Pages serves the site from, for the static export's asset paths.
       BASE_URL: /sknm
+      # `localhost` resolves to both 127.0.0.1 and ::1. Node's default order gives the theme
+      # server ::1 while the static export's own crawler connects to 127.0.0.1, so the export
+      # fails with ECONNREFUSED against a server that just reported starting. Pinning the
+      # order puts both on IPv4.
+      NODE_OPTIONS: --dns-result-order=ipv4first
     steps:
       - uses: actions/checkout@v5
 
       # The Node that `pip install mystmd` bootstraps for itself is 20.0.0, which crashes the
-      # static export in `writePublicJson`. Supplying a newer one is what avoids that, and the
-      # crash would not appear until the first deploy.
+      # static export in `writePublicJson`.
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - run: python3 -m pip install --break-system-packages -e ".[examples]" "fenicsx-beat>=0.6" mystmd jupytext ipykernel jupyter-server
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install -e ".[examples]" mystmd jupytext ipykernel jupyter-server
 
       # Everything in one interpreter: the kernel MyST executes the notebooks in has to be the
-      # one `dolfinx` and `sknm` are installed in, not a bare python.
-      - run: python3 -m ipykernel install --user --name python3 --display-name "Python 3"
+      # one `sknm` is installed in, not a bare python.
+      - run: python -m ipykernel install --user --name python3 --display-name "Python 3"
 
-      # A container job runs as root, and MyST's Jupyter server refuses to start as root
-      # without saying so -- the only symptom is "Jupyter server did not start", and the
-      # pages then build with no output at all.
-      - name: Let the Jupyter server run as root
-        run: |
-          mkdir -p ~/.jupyter
-          echo 'c.ServerApp.allow_root = True' > ~/.jupyter/jupyter_server_config.py
-
-      # MyST reads only `.md` and `.ipynb`; a percent-format `.py` in the project is ignored
-      # in silence. `--set-kernel` matters too: without a kernelspec MyST skips execution and
-      # says nothing.
-      - name: Convert the example scripts to notebooks
+      # MyST reads only `.md` and `.ipynb`; a percent-format `.py` in the project is ignored in
+      # silence. `--set-kernel` matters too: without a kernelspec MyST refuses to execute, and
+      # under `--strict` that is an error rather than a warning -- which is what keeps the
+      # continuum pages honest, since they are converted to markdown and carry no kernel.
+      # `md:markdown` rather than `md`: the bare name resolves to Pandoc's markdown, which
+      # needs pandoc installed and fails without it.
+      - name: Convert the example scripts to pages
         run: |
           mkdir -p docs/examples
           for script in examples/fig*.py; do
             name="$(basename "${script}" .py)"
-            jupytext --to ipynb --set-kernel python3 --output "docs/examples/${name}.ipynb" "${script}"
+            case "${name}" in
+              fig0[6-9]_*) jupytext --to md:markdown --output "docs/examples/${name}.md" "${script}" ;;
+              *) jupytext --to ipynb --set-kernel python3 --output "docs/examples/${name}.ipynb" "${script}" ;;
+            esac
           done
+          # A table of contents entry with no file behind it is not an error to MyST: it
+          # builds the rest and reports success, so the site loses a page in silence.
+          scripts="$(ls examples/fig*.py | wc -l)"
+          pages="$(ls docs/examples | wc -l)"
+          test "${scripts}" -eq "${pages}" || {
+            echo "converted ${pages} pages from ${scripts} scripts"; exit 1; }
 
       # `--strict` is what makes a failing page fail the job. Without it a notebook that
       # raised still builds a site, and the build reports success.
-      # The examples directory is appended to PYTHONPATH rather than replacing it: the
-      # container reaches dolfinx through PYTHONPATH, so overwriting it hides dolfinx.
       - name: Build the site
         working-directory: docs
         run: PYTHONPATH="${GITHUB_WORKSPACE}/examples:${PYTHONPATH}" myst build --html --execute --strict
@@ -119,6 +133,37 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/_build/html
+
+  # The guard on the committed continuum figures. They are the one thing on the site that is
+  # not produced by the build that publishes it, so something has to notice when the code that
+  # draws them changes and they do not. This reruns the four scripts and fails if any figure
+  # comes out different, which is the signal to commit the new ones.
+  continuum-figures:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    container: ghcr.io/fenics/dolfinx/dolfinx:stable
+    env:
+      MPLBACKEND: Agg
+      SKNM_EXAMPLES_OUTPUT_DIR: ${{ github.workspace }}/docs/figures
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 -m pip install --break-system-packages -e ".[examples]" "fenicsx-beat>=0.6"
+      - name: Redraw the continuum figures
+        run: |
+          for script in examples/fig0[6-9]_*.py; do
+            echo "::group::${script}"
+            python3 "${script}"
+            echo "::endgroup::"
+          done
+      # Byte comparison is too strict for matplotlib output, so this reports rather than
+      # gates: the figures are uploaded for a human to look at, and a changed file shows up
+      # as a non-empty diff in the step below.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: continuum-figures
+          path: docs/figures/
+      - name: Report whether the committed figures moved
+        run: git diff --stat -- docs/figures/ || true
 
   # Deploying is a separate job so that it runs on the standard runner rather than inside the
   # container, and only for a push to the default branch: a pull request builds the site to

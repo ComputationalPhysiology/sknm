@@ -6,9 +6,13 @@ project:
     The Simplified Kirchhoff Network Model of Jaeger & Tveito (2023) in Python, with KNM and
     SKNM(u_e=0) alongside it, and the paper's figures reproduced from the code that draws them.
   github: https://github.com/ComputationalPhysiology/sknm
-  # Every page below examples/ is a notebook this build writes from the matching script in
-  # examples/, and executes. Nothing here is committed: a page is the output of running the
-  # code it shows, so it cannot drift from it.
+  # Every page below examples/ is written from the matching script in examples/ at build
+  # time, so the code on a page is always the code in the repository.
+  #
+  # The network and beta pages are notebooks and are executed, so their figures and tables
+  # are the output of the run that built the page. The four continuum pages are plain
+  # markdown and are not executed: they need dolfinx and sweep for hours. Their figures are
+  # committed under figures/ and refreshed by a scheduled job, and each such page says so.
   toc:
     - file: index.md
     - title: The network models
@@ -19,10 +23,10 @@ project:
         - file: examples/fig05_sources_of_difference.ipynb
     - title: The continuum models
       children:
-        - file: examples/fig06_continuum_travelling_wave.ipynb
-        - file: examples/fig07_continuum_anisotropy.ipynb
-        - file: examples/fig08_continuum_gap_junction_variation.ipynb
-        - file: examples/fig09_continuum_sources_of_difference.ipynb
+        - file: examples/fig06_continuum_travelling_wave.md
+        - file: examples/fig07_continuum_anisotropy.md
+        - file: examples/fig08_continuum_gap_junction_variation.md
+        - file: examples/fig09_continuum_sources_of_difference.md
     - title: The beta cell models
       children:
         - file: examples/fig10_beta_travelling_wave.ipynb

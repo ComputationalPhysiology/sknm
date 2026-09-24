@@ -23,6 +23,15 @@
 # the script `examples/fig09_continuum_sources_of_difference.py`, and runs either way. Set
 # `SKNM_EXAMPLES_FULL=1` to sweep the paper's full sample rather than every other point.
 
+# %% [markdown]
+# :::{note}
+# This page shows the code and the figure it draws, but the site does not run it. The four
+# continuum examples need `dolfinx` and sweep for hours, which is more than a pull request
+# can carry; the seven network and beta pages are executed as you read them. The figure
+# below is the one this code drew, committed under `docs/figures/` and refreshed by a
+# scheduled job that reruns these four. Run the script yourself for the printed tables.
+# :::
+
 # %%
 import matplotlib.pyplot as plt
 import numpy as np
@@ -120,6 +129,15 @@ axes[1].set_ylim(bottom=0.0)
 
 common.write_figure(figure, options.output_dir, "fig09_continuum_sources_of_difference")
 plt.show()
+
+# %% [markdown]
+# ```{figure} ../figures/fig09_continuum_sources_of_difference.png
+# :alt: The conductivity misfit rising and the extracellular spread falling
+#
+# One factor grows with the gap junction spread and the other shrinks as the
+# extracellular volume grows, which together say where the two models should differ.
+# ```
+
 
 # %% [markdown]
 # ## The numbers behind it

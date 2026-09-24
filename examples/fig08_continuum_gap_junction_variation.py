@@ -18,6 +18,15 @@
 # the script `examples/fig08_continuum_gap_junction_variation.py`, and runs either way. Set
 # `SKNM_EXAMPLES_FULL=1` to sweep the paper's full sample rather than every other point.
 
+# %% [markdown]
+# :::{note}
+# This page shows the code and the figure it draws, but the site does not run it. The four
+# continuum examples need `dolfinx` and sweep for hours, which is more than a pull request
+# can carry; the seven network and beta pages are executed as you read them. The figure
+# below is the one this code drew, committed under `docs/figures/` and refreshed by a
+# scheduled job that reruns these four. Run the script yourself for the printed tables.
+# :::
+
 # %%
 import matplotlib.pyplot as plt
 
@@ -80,6 +89,14 @@ plotting.variant_legend(figure, MODELS)
 
 common.write_figure(figure, options.output_dir, "fig08_continuum_gap_junction_variation")
 plt.show()
+
+# %% [markdown]
+# ```{figure} ../figures/fig08_continuum_gap_junction_variation.png
+# :alt: Conduction velocity against gap junction variation, at four extracellular volumes
+#
+# The two models part company further as the spread widens and the extracellular space shrinks.
+# ```
+
 
 # %% [markdown]
 # ## The numbers behind it

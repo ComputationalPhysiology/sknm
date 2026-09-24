@@ -16,6 +16,15 @@
 # the script `examples/fig07_continuum_anisotropy.py`, and runs either way. Set
 # `SKNM_EXAMPLES_FULL=1` to sweep the paper's full sample rather than every other point.
 
+# %% [markdown]
+# :::{note}
+# This page shows the code and the figure it draws, but the site does not run it. The four
+# continuum examples need `dolfinx` and sweep for hours, which is more than a pull request
+# can carry; the seven network and beta pages are executed as you read them. The figure
+# below is the one this code drew, committed under `docs/figures/` and refreshed by a
+# scheduled job that reruns these four. Run the script yourself for the printed tables.
+# :::
+
 # %%
 import matplotlib.pyplot as plt
 
@@ -86,6 +95,14 @@ plotting.variant_legend(figure, MODELS)
 
 common.write_figure(figure, options.output_dir, "fig07_continuum_anisotropy")
 plt.show()
+
+# %% [markdown]
+# ```{figure} ../figures/fig07_continuum_anisotropy.png
+# :alt: Conduction velocity against anisotropy factor, at four extracellular volume fractions
+#
+# The monodomain model tracks the bidomain one until the extracellular space is small.
+# ```
+
 
 # %% [markdown]
 # ## The numbers behind it
