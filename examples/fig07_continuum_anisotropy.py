@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Figure 7 — continuum conduction velocity against cell shape
+# # Figure 7: continuum conduction velocity against cell shape
 #
 # The continuum counterpart of Figure 3. Elongating the cells while holding their volume near
 # 4 pL makes the intracellular conductivity anisotropic, and the monodomain model has only one

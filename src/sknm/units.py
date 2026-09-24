@@ -1,9 +1,9 @@
-"""Units, carried on the values themselves rather than left to a convention.
+"""Units, carried on the values themselves instead of left to a convention.
 
 Every dimensional quantity entering `sknm` must be a `pint` quantity: ``16 * um``, not ``16``.
-A bare number is rejected, and a quantity whose dimension is wrong -- a time where a length
-belongs -- is rejected too. The mistake this forecloses is the silent one: geometry entered in
-the wrong unit produces a network that solves perfectly well and describes nothing biological.
+A bare number is rejected, and so is a quantity whose dimension is wrong, such as a time where
+a length belongs. The mistake worth catching here is the silent one: geometry entered in the
+wrong unit produces a network that solves perfectly well and describes nothing biological.
 
 Internally the package stores bare magnitudes in one fixed base set, the cardiac CGS set the
 reference implementation uses. Units are parsed once, at the boundary; nothing in the numerical
@@ -25,16 +25,16 @@ Dimension                 Base unit       Written as
 ``velocity``              cm per second   ``cm / s``
 ========================  ==============  =====================
 
-The one oddity is `velocity`, whose base is centimetres per *second* while every other time in
+The one oddity is `velocity`, whose base is centimetres per second while every other time in
 the package is a millisecond. A conduction velocity is reported in cm/s throughout the
-literature, and it is the only quantity here that leaves as a number a reader compares against a
-published figure rather than as state the numerical core consumes.
+literature, and it is the only quantity here that leaves the package as a number to be compared
+against a published figure. The rest leave as state for the numerical core.
 
 Read an attribute off a `CellNetwork` and you get a bare float in the base unit for its
 dimension, documented on the attribute. Conversion happens at the constructors and nowhere
 else.
 
-Quantities are built from pint's *application registry*, which is the registry pint hands to
+Quantities are built from pint's application registry, which is the registry pint hands to
 libraries so that quantities made elsewhere in a program interoperate with these:
 
 ```python
@@ -43,7 +43,7 @@ lx = 16 * um
 conductivity = 4 * mS / cm
 ```
 
-The names are ASCII transliterations -- `um` for the micrometre, `uF` for the microfarad --
+The names are ASCII transliterations, `um` for the micrometre and `uF` for the microfarad,
 because mixing Greek mu into identifiers invites two spellings of the same name.
 """
 
@@ -120,8 +120,8 @@ def in_base_units(value: Any, dimension: str, *, name: str) -> Any:
 
     The one place a unit is removed. It is done through `pint.Quantity.m_as`, never through
     `numpy.asarray`: asking numpy for an array of a quantity yields its magnitude in whatever
-    unit it happens to be carrying, so ``16 * um`` would arrive as the number 16 -- a factor of
-    10,000 wrong, and silent.
+    unit it happens to be carrying, so ``16 * um`` would arrive as the number 16, which is a
+    silent factor of 10,000.
 
     Parameters
     ----------

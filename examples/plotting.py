@@ -1,12 +1,12 @@
 """The look of the figures: the paper's layout, drawn in a palette chosen for legibility.
 
-The paper's figures encode the model in two channels at once -- a colour and a line style --
-and the encoding is reproduced here, because it is what makes the figures readable when the
-two curves lie on top of each other and what keeps them readable in greyscale and to a
-colour-blind reader. What is *not* reproduced is the plotting package's default appearance:
-the series colours are a set whose pairwise separation has been checked under simulated colour
-vision deficiency, the grid is a recessive hairline rather than a dashed rule, and the axis
-furniture is muted so the data is the darkest thing on the page.
+The paper's figures encode the model in two channels at once, a colour and a line style. That
+encoding is reproduced here, because it keeps the figures readable when the two curves lie on
+top of each other and what keeps them readable in greyscale and to a colour-blind reader.
+The plotting package's default appearance is not reproduced: the series colours are a set whose
+pairwise separation has been checked under simulated colour vision deficiency, the grid is a
+recessive hairline rather than a dashed rule, and the axis furniture is muted so the data is the
+darkest thing on the page.
 
 Every figure is drawn on a light surface. These are files written to disk for reading and for
 pasting beside the published originals, not a page that follows a reader's theme.
@@ -37,10 +37,10 @@ AXIS = "#c3c2b7"
 #: The line styles are the paper's own: KNM solid, SKNM dotted.
 #:
 #: The two continuum models are keyed by name and share the network models' two colours and
-#: styles. Figures 6 to 9 are the counterparts of Figures 2 to 5 one for one -- the bidomain
-#: model is where KNM's assumption is not yet made and the monodomain model is where it is --
-#: so drawing the counterpart pair in the counterpart colours is what lets a reader lay the
-#: two halves of the paper side by side.
+#: styles. Figures 6 to 9 are the counterparts of Figures 2 to 5 one for one: the bidomain model
+#: is where KNM's assumption is not yet made, and the monodomain model is where it is. Drawing
+#: the counterpart pair in the counterpart colours lets a reader lay the two halves of the paper
+#: side by side.
 SERIES_COLOUR = {
     Variant.KNM: "#2a78d6",
     Variant.SKNM: "#eb6834",
@@ -135,10 +135,10 @@ def small_multiples(
         Whether every panel is drawn on one y scale, by default `False`.
 
         Off by default because the paper's Figures 3, 4 and S2 give their 2% panel a range of
-        its own, where the models separate far enough to need it. Turn it on where the
-        figure's message is that the panels *agree*: panels on scales of their own cannot be
-        compared by eye at all, so four identical curves would be drawn four different sizes
-        and read as four different results.
+        its own, where the models separate far enough to need it. Turn it on where the point of
+        the figure is that the panels agree: panels on scales of their own cannot be compared by
+        eye at all, so four identical curves would be drawn four different sizes and read as
+        four different results.
 
     Returns
     -------
@@ -234,9 +234,8 @@ def plot_series(
 ) -> None:
     """Draw one model's curve, in its colour, its line style and its marker.
 
-    The markers carry a ring in the surface colour, so that where two models agree -- which
-    on most of these panels is everywhere -- the marker on top does not swallow the one
-    beneath it.
+    The markers carry a ring in the surface colour, so that where two models agree, which on
+    most of these panels is everywhere, the marker on top does not swallow the one beneath it.
 
     Parameters
     ----------

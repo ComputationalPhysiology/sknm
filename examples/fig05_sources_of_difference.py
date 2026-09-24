@@ -1,15 +1,15 @@
 # %% [markdown]
-# # Figure 5 — why KNM and SKNM differ
+# # Figure 5: why KNM and SKNM differ
 #
 # The error SKNM makes on a connection is the product of two things: how far that connection
 # is from the single conductance ratio SKNM assumes, and how much the extracellular potential
 # varies across it. This page shows one of each, so they can be looked at one at a time.
 #
-# - **Left.** $F(\lambda)$, the misfit the ratio is chosen to minimize, as the gap junction
+# - Left: $F(\lambda)$, the misfit the ratio is chosen to minimize, as the gap junction
 #   conductances are spread. It rises from zero, so the first factor grows with the spread.
-#   This needs no simulation at all — it is a property of a network's conductances.
-# - **Right.** How far apart the extracellular potential gets across the sheet during a run,
-#   as the extracellular volume fraction grows. It falls, so the second factor shrinks. This
+#   This needs no simulation at all, being a property of a network's conductances.
+# - Right: how far apart the extracellular potential gets across the sheet during a run, as
+#   the extracellular volume fraction grows. It falls, so the second factor shrinks. This
 #   needs KNM, the only model that solves for an extracellular potential.
 #
 # Together they say the two models should differ most at a wide spread and a small
@@ -40,8 +40,8 @@ print(fractions)
 # ## The left panel: the misfit
 #
 # $F(\lambda)$ is equation (29): how badly one ratio can be made to fit every connection at
-# once. It is algebra over the network's conductances, so it is dense — 21 points — and
-# instant.
+# once. It is algebra over the network's conductances, so it is instant and can be drawn
+# densely, at 21 points.
 
 # %%
 misfits = [

@@ -52,8 +52,8 @@ def base_lengths(geometry):
     return tuple(geometry[name].m_as("cm") for name in ("lx", "ly", "lz"))
 
 
-# alpha = 1. Square cells, so x- and y-connections come out identical -- which is exactly why
-# most of the geometry below is checked on the anisotropic sheet instead.
+# alpha = 1. Square cells, so x- and y-connections come out identical, which is why most of the
+# geometry below is checked on the anisotropic sheet instead.
 ISOTROPIC = paper_geometry(16, 16)
 # alpha = 1.5. Distinct lengths, cross-sections and shape factors per direction.
 ANISOTROPIC = paper_geometry(21, 14)
@@ -66,10 +66,10 @@ def reference_stencil_laplacians(nx, ny, lx, ly, lz, delta_e, sigma_i, sigma_e, 
     """Assemble L_i and L_ie the way the reference C++ does, by grid index arithmetic.
 
     A transcription of the `Mi_xp` / `Mi_xm` / `Mi_yp` / `Mi_ym` loop and of the matrix
-    construction that consumes it, kept deliberately literal -- including the `0.5*(d+d)`
-    averaging that is redundant on a uniform sheet -- so that the comparison is against the
-    reference's own arithmetic rather than a tidied-up restatement of it. Takes and returns
-    bare magnitudes in the package's base units, as the C++ does in its own.
+    construction that consumes it, kept deliberately literal, down to the `0.5*(d+d)` averaging
+    that is redundant on a uniform sheet, so that the comparison is against the reference's own
+    arithmetic rather than a tidied-up restatement of it. Takes and returns bare magnitudes in
+    the package's base units, as the C++ does in its own.
     """
     n = nx * ny
     de = np.full(n, delta_e)
@@ -193,7 +193,7 @@ def test_lam_weights_each_connection_by_its_squared_shape_factor():
     """Paper eq. 30 weights by (l/A)^2, and the square is not decorative.
 
     On an anisotropic sheet the two directions have different shape factors, so dropping the
-    square moves the answer -- which it cannot do on the square-celled sheet above.
+    square moves the answer, which it cannot do on the square-celled sheet above.
     """
     network = sheet(4, 3, **ANISOTROPIC)
     shape_factor = network.length / network.cross_section
@@ -471,7 +471,7 @@ def test_lam_override_needs_no_unit_but_refuses_one():
 
 
 def test_the_same_quantity_in_different_units_gives_the_same_network():
-    """Units are converted, not merely stripped."""
+    """The magnitude is converted to the base unit, not just taken as it stands."""
     in_micrometres = sheet(3, 3, **ISOTROPIC)
     in_centimetres = sheet(
         3,

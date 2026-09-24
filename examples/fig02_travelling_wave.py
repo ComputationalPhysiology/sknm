@@ -1,13 +1,13 @@
 # %% [markdown]
-# # Figure 2 — a travelling wave across 40x40 hiPSC-CMs
+# # Figure 2: a travelling wave across 40x40 hiPSC-CMs
 #
 # Snapshots of the membrane potential at three points in time, one row per model. This is the
 # paper's default set-up, where every connection has the same conductances, so a single ratio
 # relates the extracellular and intracellular conductance of all of them and the assumption
 # SKNM is derived from holds exactly.
 #
-# The two rows should be indistinguishable. The point of the page is the number at the bottom,
-# which says how indistinguishable they actually are.
+# The two rows should be indistinguishable, and the table at the bottom says how close they
+# actually come.
 #
 # This page is also the script `examples/fig02_travelling_wave.py`, and runs either way. It is
 # cheap enough that `SKNM_EXAMPLES_FULL` changes nothing: there is no sweep to reduce, only
@@ -62,8 +62,8 @@ plt.show()
 # %% [markdown]
 # ## How far apart the rows are
 #
-# The last column is the whole claim: the largest difference between the two models at any
-# cell, at each moment drawn above.
+# The last column holds the largest difference between the two models at any cell, at each
+# moment drawn above.
 
 # %%
 common.snapshot_report(recorded, [f"{time:g}" for time in SNAPSHOT_TIMES], VARIANTS, "t (ms)")

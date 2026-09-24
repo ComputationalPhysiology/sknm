@@ -20,18 +20,18 @@ The two reference drivers are structurally identical and differ only in constant
 families here mirror one another. Four of those constants are easy to get wrong from the paper
 alone and are worth naming:
 
-- `MEMBRANE_AREA` is a **constant**, the same for every anisotropy factor. It is not the
-  surface area of the cuboid the cell dimensions describe, which `sheet` would compute by
-  default and which is 3.4% smaller at ``alpha=1``.
-- `hipsc_stimulus_amplitude` returns an amplitude for **every** cell, zero outside the
-  stimulated region. A membrane model carries a stimulus amplitude of its own, and setting one
-  only on the stimulated cells leaves every other cell stimulating itself.
-- A beta cell's third dimension is **fixed** at its cell size, not derived from the
-  extracellular volume fraction the way the hiPSC sheet derives it. At ``delta_e=0.5`` the
-  hiPSC rule would give 19.5 um where the reference uses 13.
-- `BETA_CM` is **derived** rather than the round 1.0 uF/cm2. A beta cell's membrane area is the
-  surface of a sphere and its membrane model carries an absolute capacitance of 5300 fF; the
-  two disagree by 0.18% if the specific capacitance is assumed. See `BETA_CM`.
+- `MEMBRANE_AREA` is a constant, the same for every anisotropy factor. It is not the surface
+  area of the cuboid the cell dimensions describe, which `sheet` would compute by default and
+  which is 3.4% smaller at ``alpha=1``.
+- `hipsc_stimulus_amplitude` returns an amplitude for every cell, zero outside the stimulated
+  region. A membrane model carries a stimulus amplitude of its own, and setting one only on the
+  stimulated cells leaves every other cell stimulating itself.
+- A beta cell's third dimension is fixed at its cell size. The hiPSC sheet derives its third
+  dimension from the extracellular volume fraction instead, and at ``delta_e=0.5`` that rule
+  would give 19.5 um where the reference uses 13.
+- `BETA_CM` is derived, not the round 1.0 uF/cm2. A beta cell's membrane area is the surface of
+  a sphere and its membrane model carries an absolute capacitance of 5300 fF; the two disagree
+  by 0.18% if the specific capacitance is assumed. See `BETA_CM`.
 """
 
 from __future__ import annotations
@@ -104,17 +104,17 @@ BETA_MEMBRANE_AREA = (np.pi * BETA_CELL_SIZE**2).to(units.cm**2)
 #: Absolute membrane capacitance of one beta cell, the value `sknm.membrane.PBM`'s voltage
 #: equation divides by. Published by Bertram & Sherman (2004) with the rest of the model.
 BETA_CAPACITANCE = 5300.0 * units.fF
-#: Specific membrane capacitance of a beta cell, **derived** so that ``BETA_CM *
-#: BETA_MEMBRANE_AREA`` is exactly `BETA_CAPACITANCE`, rather than assumed to be the round
+#: Specific membrane capacitance of a beta cell, derived so that ``BETA_CM *
+#: BETA_MEMBRANE_AREA`` is exactly `BETA_CAPACITANCE`, instead of assumed to be the round
 #: 1.0 uF/cm2 the reference writes.
 #:
 #: The three numbers cannot all be round at once: 5300 fF is a published measurement, the
 #: membrane area is pi*d^2 at a diameter rounded to 13 um, and their quotient is 0.998248
 #: uF/cm2. The reference carries 5300 fF in the membrane model and 1.0 uF/cm2 in the network,
-#: which disagree by 0.18% -- enough for `sknm.Simulation` to reject the pairing, since the two
-#: capacitances have to be the same number for the split to conserve charge. Of the three the
-#: specific capacitance is the only generic constant rather than a measurement, so it is the
-#: one that gives way. The effect on a conduction velocity is about 0.1%.
+#: which disagree by 0.18%. That is enough for `sknm.Simulation` to reject the pairing, since
+#: the two capacitances have to be the same number for the split to conserve charge. Of the
+#: three, the specific capacitance is the only generic constant and not a measurement, so it is
+#: the one that gives way. The effect on a conduction velocity is about 0.1%.
 BETA_CM = (BETA_CAPACITANCE / BETA_MEMBRANE_AREA).to(units.uF / units.cm**2)
 #: Gap junction conductance between beta cells, the reference's 5e6 kOhm inverted. A thousand
 #: times weaker than the cardiac one, which is most of why a beta wave is 150 times slower.
@@ -123,8 +123,8 @@ BETA_GAP_JUNCTION_CONDUCTANCE = (1 / (5e6 * units.kohm)).to(units.mS)
 BETA_DELTA_E = 0.5
 #: The beta cell membrane model's own K-ATP conductance, in its own convention, so bare.
 BETA_KATP_CONDUCTANCE = 500.0
-#: The stimulated value of that conductance. The beta stimulus is a *halved* conductance rather
-#: than an injected current, so the unstimulated cells keep the model's own default.
+#: The stimulated value of that conductance. The beta stimulus halves a conductance instead of
+#: injecting a current, so the unstimulated cells keep the model's own default.
 BETA_STIMULUS_KATP_CONDUCTANCE = 250.0
 #: Membrane potential at which a beta cell counts as activated. A beta action potential peaks at
 #: about -19.5 mV, so `HIPSC_THRESHOLD` applied here would activate almost nothing.
@@ -212,10 +212,10 @@ def hipsc_sheet(
 def hipsc_stimulus_amplitude(nx: int = 40, ny: int = 40) -> npt.NDArray[np.float64]:
     """The stimulus amplitude of every cell of the sheet, for `Simulation.set_parameter`.
 
-    `STIMULUS_AMPLITUDE` over the stimulated region and **zero everywhere else**. The zeros are
-    the point: a membrane model has a stimulus amplitude of its own, and raising the amplitude
-    only where the stimulus belongs leaves every other cell firing on its own schedule, which
-    looks like a wave and travels at the wrong speed.
+    `STIMULUS_AMPLITUDE` over the stimulated region and zero everywhere else. The zeros matter:
+    a membrane model has a stimulus amplitude of its own, so raising the amplitude only where
+    the stimulus belongs leaves every other cell firing on its own schedule, which looks like a
+    wave and travels at the wrong speed.
 
     The region is the reference's: the two leftmost columns, over eleven rows centred on the row
     a conduction velocity is measured along. On a sheet too small to hold it, it is clipped.
@@ -265,8 +265,8 @@ def hipsc_conduction_path(nx: int = 40, ny: int = 40, *, alpha: Any = 1.0) -> Co
         Shape of the sheet, by default 40 by 40.
     alpha : float, optional
         Anisotropy factor the sheet was built with, by default 1.0. It sets the cell length and
-        so the distance; passing one that does not match the network understates or overstates
-        the velocity with nothing else to show for it.
+        so the distance, so one that does not match the network scales the velocity by the
+        ratio between them.
 
     Returns
     -------
@@ -317,15 +317,15 @@ def hipsc_centre_cell(nx: int = 40, ny: int = 40) -> int:
 def vary_conductances(network: CellNetwork, gamma: Any, draws: npt.ArrayLike) -> Any:
     """Spread a network's gap junction conductances around their nominal value.
 
-    The reference varies the gap junction *resistance*,
+    The reference varies the gap junction resistance,
     ``Rg = Rg0 / (a*(1 - gamma) + (1 - a)*(1 + gamma))``, from one draw `a` per connection. In
     conductance that is a multiplier uniform over ``[1 - gamma, 1 + gamma]``, so ``gamma = 0``
     returns the conductances unchanged whatever the draws are.
 
     The draws are an argument rather than something this function makes, because the paper's
-    sweep reuses **one** set across every value of `gamma` and every variant: that is what makes
-    the resulting curves comparable point for point rather than each a different network. Make
-    them once, with a seed:
+    sweep reuses a single set across every value of `gamma` and every variant. That is what
+    makes the resulting curves comparable point for point, instead of each one being a
+    different network. Make them once, with a seed:
 
     ```python
     draws = numpy.random.default_rng(0).random(network.n_connections)
@@ -401,7 +401,7 @@ def hipsc_cell_size(alpha: Any = 1.0) -> tuple[Any, Any]:
     ```
 
     The rounding is why the volume comes out between 3.9 and 4.1 pL rather than exactly 4, and
-    it is what makes the five sizes in `CELL_DIMENSIONS` come out at the round numbers they do.
+    it is why the five sizes in `CELL_DIMENSIONS` come out at the round numbers they do.
     The third dimension is not set here: it follows the extracellular volume fraction,
     ``lz = (1 + delta_e) * ly``, which `hipsc_sheet` applies.
 
@@ -457,8 +457,8 @@ def _stimulated_region(
 ) -> npt.NDArray[np.float64]:
     """A per-cell parameter array: `stimulated` over the region, `elsewhere` outside it.
 
-    The region is the leftmost `columns` columns over a block of `rows` rows **centred in the
-    sheet**, with an uneven remainder going to the lower rows. That reproduces both of the
+    The region is the leftmost `columns` columns over a block of `rows` rows centred in the
+    sheet, with an uneven remainder going to the lower rows. That reproduces both of the
     reference's windows, which are written in cell widths with a node at each cell centre:
     ``14*ly < y < 25*ly`` is rows 14 to 24 of 40, and ``5*ly < y < 10*ly`` is rows 5 to 9 of 15.
 
@@ -502,9 +502,9 @@ def beta_sheet(
 ) -> CellNetwork:
     """Build the paper's sheet of pancreatic beta cells.
 
-    Differs from `hipsc_sheet` in more than its constants. There is no anisotropy factor -- a
-    beta cell is a cube of side `BETA_CELL_SIZE` -- and the third dimension is **fixed** at that
-    side rather than derived from `delta_e`, so raising the extracellular volume fraction
+    Differs from `hipsc_sheet` in more than its constants. There is no anisotropy factor, since
+    a beta cell is a cube of side `BETA_CELL_SIZE`, and the third dimension is fixed at that
+    side rather than derived from `delta_e`. So raising the extracellular volume fraction
     changes the extracellular conductance without changing the cell.
 
     Parameters
@@ -569,7 +569,7 @@ def beta_membrane_model() -> MembraneModel:
 
     `sknm.membrane.PBM` names its membrane potential ``v`` rather than ``V_m`` and integrates
     ``dv/dt = -I / Cm``, so both have to be bound when it is wrapped. Declaring the capacitance
-    is what lets `sknm.Simulation` check the network against it, and is why `beta_sheet` derives
+    lets `sknm.Simulation` check the network against it, and is why `beta_sheet` derives
     `BETA_CM` instead of rounding it.
 
     Returns
@@ -590,11 +590,10 @@ def beta_membrane_model() -> MembraneModel:
 def beta_stimulus_conductance(nx: int = 15, ny: int = 15) -> npt.NDArray[np.float64]:
     """The K-ATP conductance of every cell of the sheet, for `Simulation.set_parameter`.
 
-    The beta stimulus is not an injected current: it is the K-ATP conductance **halved** on a
-    region of cells, which depolarizes them enough to start a wave. So unlike
-    `hipsc_stimulus_amplitude`, the value outside the region is the membrane model's own
-    default rather than zero -- but this still returns the whole array, because
-    `set_parameter` writes what it is given.
+    The beta stimulus halves the K-ATP conductance on a region of cells, which depolarizes them
+    enough to start a wave. So unlike `hipsc_stimulus_amplitude`, the value outside the region
+    is the membrane model's own default and not zero. This still returns the whole array,
+    because `set_parameter` writes what it is given.
 
     The region is the reference's: the two leftmost columns over five rows centred on the row a
     conduction velocity is measured along. On a sheet too small to hold it, it is clipped.
@@ -665,9 +664,8 @@ def beta_conduction_path(nx: int = 15, ny: int = 15) -> ConductionPath:
 def beta_centre_cell(nx: int = 15, ny: int = 15) -> int:
     """The beta cell at the centre of the sheet, whose trace the reference saves every step.
 
-    The same cell as `hipsc_centre_cell` would give for a sheet of the same shape: both
-    reference drivers compute it with the same expression, so this is one formula wearing two
-    names rather than two conventions.
+    The same cell as `hipsc_centre_cell` would give for a sheet of the same shape. Both
+    reference drivers compute it with the same expression, so the two names share one formula.
 
     Parameters
     ----------

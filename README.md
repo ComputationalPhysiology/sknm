@@ -1,19 +1,19 @@
 # sknm
 
-A Python implementation of the **Simplified Kirchhoff Network Model** (SKNM) of Jæger & Tveito,
-*Scientific Reports* **13**:16434 (2023), together with **KNM** and **SKNM(uₑ=0)** so that the
-paper's model comparisons can be reproduced.
+A Python implementation of the Simplified Kirchhoff Network Model (SKNM) of Jæger & Tveito,
+*Scientific Reports* 13:16434 (2023), together with KNM and SKNM(uₑ=0) so that the paper's model
+comparisons can be reproduced.
 
 The domain is cell-based cardiac and islet electrophysiology: excitable cells coupled through gap
 junctions, resolved per cell rather than homogenized into a continuum. See
 [`CONTEXT.md`](CONTEXT.md) for the vocabulary this codebase uses.
 
-> **Status: early development.** The model, the solvers and the analysis are implemented, and
-> the scripts in [`examples/`](examples) reproduce the paper's figures for both of its cell
-> types — hiPSC-derived cardiomyocytes and pancreatic β cells. The homogenized bidomain and
-> monodomain comparisons (Figures 6–9) are reproduced too, through `dolfinx` and
-> `fenicsx-beat` rather than in `sknm` itself: those four scripts need both installed and
-> report what is missing when they are not.
+> Status: early development. The model, the solvers and the analysis are implemented, and the
+> scripts in [`examples/`](examples) reproduce the paper's figures for both of its cell types,
+> hiPSC-derived cardiomyocytes and pancreatic β cells. The homogenized bidomain and monodomain
+> comparisons (Figures 6 to 9) are reproduced too, through `dolfinx` and `fenicsx-beat` rather
+> than in `sknm` itself: those four scripts need both installed and report what is missing when
+> they are not.
 
 ## Installation
 
@@ -21,9 +21,9 @@ junctions, resolved per cell rather than homogenized into a continuum. See
 python -m pip install -e ".[dev]"
 ```
 
-Runtime dependencies are **numpy**, **scipy** and **pint**. `matplotlib` arrives with the
-`examples` extra; `gotranx` with the `codegen` extra, which is needed only to regenerate the
-membrane models (the generated Python is committed).
+Runtime dependencies are numpy, scipy and pint. `matplotlib` arrives with the `examples` extra,
+and `gotranx` with the `codegen` extra, which is needed only to regenerate the membrane models
+(the generated Python is committed).
 
 Two membrane models ship: `base_model_IM`, an hiPSC-CM model, and `PBM`, the phantom bursting
 model of the pancreatic β cell. Both are generated from the `.ode` sources in the repository
@@ -86,13 +86,13 @@ Each script in [`examples/`](examples) reproduces one of the paper's figures, wr
 
 | Script | Reproduces |
 |---|---|
-| `fig02_travelling_wave.py` | Figure 2 — snapshots of a wave crossing 40×40 cells, KNM against SKNM |
-| `fig03_anisotropy.py` | Figure 3 — conduction velocity against cell length-to-width ratio |
-| `fig04_gap_junction_variation.py` | Figures 4 and S2 — conduction velocity against gap junction variation |
-| `fig05_sources_of_difference.py` | Figure 5 — the two factors that make KNM and SKNM differ |
-| `fig10_beta_travelling_wave.py` | Figure 10 — snapshots of a wave crossing 15×15 β cells |
-| `fig11_beta_variable_coupling.py` | Figure 11 — the same, at γ = 1 and 2% extracellular volume |
-| `fig12_beta_gap_junction_variation.py` | Figures 12 and S1 — β conduction velocity against gap junction variation |
+| `fig02_travelling_wave.py` | Figure 2: snapshots of a wave crossing 40×40 cells, KNM against SKNM |
+| `fig03_anisotropy.py` | Figure 3: conduction velocity against cell length-to-width ratio |
+| `fig04_gap_junction_variation.py` | Figures 4 and S2: conduction velocity against gap junction variation |
+| `fig05_sources_of_difference.py` | Figure 5: the two factors that make KNM and SKNM differ |
+| `fig10_beta_travelling_wave.py` | Figure 10: snapshots of a wave crossing 15×15 β cells |
+| `fig11_beta_variable_coupling.py` | Figure 11: the same, at γ = 1 and 2% extracellular volume |
+| `fig12_beta_gap_junction_variation.py` | Figures 12 and S1: β conduction velocity against gap junction variation |
 
 ```bash
 python -m pip install -e ".[examples]"
@@ -100,30 +100,30 @@ python examples/fig03_anisotropy.py                       # a reduced sample, ab
 SKNM_EXAMPLES_FULL=1 python examples/fig03_anisotropy.py  # the paper's whole sample
 ```
 
-Every script is **fast by default**: it sweeps every other point of its parameter range unless
-`SKNM_EXAMPLES_FULL` is set. The reduction is fewer points, never cheaper points — each point
-plotted is computed on the paper's own 40×40 sheet at its own 0.02 ms time step, so a full run
-adds markers rather than moving them. Results are cached under `examples/results/` and reused,
-so restyling a figure costs no simulation; the cache is keyed on the parameters of a run and
-cannot see that `sknm` itself has changed, so set `SKNM_EXAMPLES_NO_CACHE=1` or delete the
+Every script is fast by default: it sweeps every other point of its parameter range unless
+`SKNM_EXAMPLES_FULL` is set. The reduction drops points and never makes a point cheaper. Each
+point plotted is computed on the paper's own 40×40 sheet at its own 0.02 ms time step, so a full
+run adds markers rather than moving them. Results are cached under `examples/results/` and
+reused, so restyling a figure costs no simulation. The cache is keyed on the parameters of a run
+and cannot see that `sknm` itself has changed, so set `SKNM_EXAMPLES_NO_CACHE=1` or delete the
 directory after changing the library.
 
-Each script is also a page of the documentation site, so it is run both as a script and, by
-the docs build, as a notebook. A notebook's process belongs to the Jupyter kernel and its
-command line describes the kernel, not the script, so these are environment variables rather
-than options: `SKNM_EXAMPLES_FULL`, `SKNM_EXAMPLES_NO_CACHE` and `SKNM_EXAMPLES_OUTPUT_DIR`.
+Each script is also a page of the documentation site, so it is run both as a script and, by the
+docs build, as a notebook. A notebook's process belongs to the Jupyter kernel and its command
+line describes the kernel rather than the script, so these are environment variables rather than
+options: `SKNM_EXAMPLES_FULL`, `SKNM_EXAMPLES_NO_CACHE` and `SKNM_EXAMPLES_OUTPUT_DIR`.
 
-The gap junction draws differ between the two cell types, and the reason is measurable. The
-**cardiac** figures seed a generator rather than using the paper's own random numbers: on a
-40×40 sheet with a 25-cell conduction path the choice of draws moves a velocity by about 2%, so
-those curves sit very close to the published ones rather than on top of them. The authors' draws
-can be passed to `presets.vary_conductances` instead, if you have them.
+The gap junction draws differ between the two cell types, and the difference is measurable. The
+cardiac figures seed a generator rather than using the paper's own random numbers: on a 40×40
+sheet with a 25-cell conduction path the choice of draws moves a velocity by about 2%, so those
+curves sit very close to the published ones rather than on top of them. The authors' draws can be
+passed to `presets.vary_conductances` instead, if you have them.
 
-The **β** figures cannot do that. A 15×15 sheet has 420 connections and an 8-cell path, so at
-γ = 1 the draws move the velocity by 20% and every seed tried fell below the axis of the
-published Figure S1. Those scripts therefore read the authors' own 420 draws, committed with
-their provenance under [`examples/data/`](examples/data). No number the test suite asserts
-depends on them: every published target is at γ = 0, where the draws cancel out of the formula.
+The β figures cannot do that. A 15×15 sheet has 420 connections and an 8-cell path, so at γ = 1
+the draws move the velocity by 20%, and every seed tried fell below the axis of the published
+Figure S1. Those scripts therefore read the authors' own 420 draws, committed with their
+provenance under [`examples/data/`](examples/data). No number the test suite asserts depends on
+them: every published target is at γ = 0, where the draws cancel out of the formula.
 
 ## Development
 
@@ -136,11 +136,11 @@ Requires Python 3.11 or newer.
 
 ## Attribution
 
-This is an **independent Python reimplementation**. It is not the authors' code and is not
-endorsed by them. The model, its equations and its reference parameters are due to:
+This is an independent Python reimplementation. It is not the authors' code and is not endorsed
+by them. The model, its equations and its reference parameters are due to:
 
 > Jæger, K.H., Tveito, A. *The simplified Kirchhoff network model (SKNM): a cell-based
-> reaction–diffusion model of excitable tissue.* Scientific Reports **13**, 16434 (2023).
+> reaction–diffusion model of excitable tissue.* Scientific Reports 13, 16434 (2023).
 > <https://doi.org/10.1038/s41598-023-43444-9>
 
 The authors' own C++ implementation is distributed under CC-BY-4.0 and was used as the ground
@@ -149,4 +149,4 @@ package; see [`CITATION.cff`](CITATION.cff).
 
 ## Licence
 
-MIT — see [`LICENSE`](LICENSE).
+MIT. See [`LICENSE`](LICENSE).

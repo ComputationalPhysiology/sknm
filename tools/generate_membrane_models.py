@@ -35,7 +35,7 @@ SOURCES = [
     ),
 ]
 
-HEADER = '''"""Generated from `{source}` -- do not edit by hand.
+HEADER = '''"""Generated from `{source}`. Do not edit by hand.
 
 Regenerate with `python3 tools/generate_membrane_models.py`.
 
@@ -65,8 +65,8 @@ def main() -> int:
             gotranx.load_ode(ode_path),
             scheme=[gotranx.schemes.Scheme.generalized_rush_larsen],
             # gotranx defaults to black; this repo formats with ruff. Emitting ruff-formatted
-            # code keeps regeneration idempotent -- otherwise the formatter rewrites the file
-            # and every regeneration shows a few hundred lines of spurious diff.
+            # code keeps regeneration idempotent. Otherwise the formatter rewrites the file and
+            # every regeneration shows a few hundred lines of spurious diff.
             format=gotranx.cli.gotran2py.Format.ruff,
         )
         out = DEST / module

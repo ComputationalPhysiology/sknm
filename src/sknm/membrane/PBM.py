@@ -1,4 +1,4 @@
-"""Generated from `PBM.ode` -- do not edit by hand.
+"""Generated from `PBM.ode`. Do not edit by hand.
 
 Regenerate with `python3 tools/generate_membrane_models.py`.
 

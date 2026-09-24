@@ -1,6 +1,6 @@
 """Rush-Larsen stability and accuracy of base_model_IM: gotranx Python vs the original C++.
 
-Protocol (ticket 02): single cell, stim_amplitude = 20, 300 ms, V_m sampled every 1 ms.
+Protocol: single cell, stim_amplitude = 20, 300 ms, V_m sampled every 1 ms.
 Reference is the original C++ with forward explicit Euler at dt = 1e-5 ms. Reports, per scheme
 and dt, the max |V_m - reference| over the 300 samples, or the time at which it went non-finite.
 

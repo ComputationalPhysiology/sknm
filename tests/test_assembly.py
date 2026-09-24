@@ -2,10 +2,10 @@
 
 Two tests carry the weight. `test_the_symmetrized_system_reproduces_the_reference_formulation`
 solves the reference implementation's own nonsymmetric block form alongside ours and demands
-the same membrane potential, which is what makes the row scaling a change of spelling rather
-than a change of model. `test_two_cells_relax_by_the_exact_backward_euler_factor` pins each
-variant's effective coupling against a closed form derived by hand, which is what stops all
-three variants agreeing on something wrong.
+the same membrane potential, showing the row scaling to be a way of writing the equations
+rather than a change of model. `test_two_cells_relax_by_the_exact_backward_euler_factor` pins
+each variant's effective coupling against a closed form derived by hand, which stops all three
+variants agreeing on something wrong.
 
 Everything here is time-free and exact: no membrane model, no time loop, no tolerance that
 depends on a convergence rate except in the one test that deliberately measures one.
@@ -63,7 +63,7 @@ def uniform_chain():
 def varied_sheet():
     """A small sheet with a different membrane area on every cell and one shut connection.
 
-    The varying area is what makes `diag(dt / (Cm * Am))` a genuine scaling rather than a
+    The varying area turns `diag(dt / (Cm * Am))` into a genuine scaling rather than a
     multiple of the identity, so it is the case in which the reference's operator is really
     nonsymmetric and ours is really symmetric. The shut gap junction leaves a connection that
     carries extracellular current and no intracellular current.
@@ -167,7 +167,7 @@ def test_the_symmetrized_system_reproduces_the_reference_extracellular_potential
 
     Negating both off-diagonal blocks is the substitution ``u_e -> -u_e``, which leaves the
     membrane potential exactly as it was. Only comparing the extracellular potential itself
-    catches it -- and that potential is what the paper's own figures plot.
+    catches it, and that potential is what the paper's own figures plot.
     """
     v_prev = ramp(varied_sheet.n_cells)
     matrix, rhs_of = reference_system(varied_sheet, DT.m_as("ms"), Variant.KNM)
@@ -258,7 +258,7 @@ def test_two_cells_relax_towards_the_analytic_exponential(variant):
         v = step(operator, v)
 
     # Backward Euler is first order, so the gap to the exponential is O(dt / tau) over one
-    # time constant -- here about 5e-4 -- and the tolerance is set just above it.
+    # time constant, about 5e-4 here, and the tolerance is set just above it.
     assert (v[0] - v[1]) / initial_gap == pytest.approx(np.exp(-1.0), rel=2e-3)
 
 
@@ -267,8 +267,8 @@ def test_two_cells_have_the_analytic_extracellular_potential():
 
     On two cells grounded at the first, the lower block of the KNM system reads
     ``Gi * (v0 - v1) = (Gi + Ge) * u_e1``, so the extracellular potential is the membrane
-    potential difference divided between the two conductances -- and it is positive where the
-    first cell is the more depolarized one, because that is the direction the return current
+    potential difference divided between the two conductances. It is positive where the first
+    cell is the more depolarized one, because that is the direction the return current
     takes.
     """
     network = two_cells()
@@ -352,7 +352,7 @@ def test_the_ground_shifts_the_extracellular_potential_by_a_constant_and_leaves_
 
     Exactly true in algebra. Numerically, grounding a different cell deletes a different row
     and column and so factorizes a different matrix, which moves the membrane potential by a
-    unit in the last place -- hence roundoff rather than equality.
+    unit in the last place. Hence roundoff rather than equality.
     """
     v_prev = ramp(uniform_chain.n_cells)
     potentials = []
@@ -386,7 +386,7 @@ def test_a_ground_that_pins_a_component_twice_is_refused():
         assemble(disconnected_pairs(), dt=DT, variant=Variant.KNM, ground=[0, 1])
 
 
-# --- The seam PR 4 builds on --------------------------------------------------------------
+# --- The seam a simulation steps through ---------------------------------------------------
 
 
 @pytest.mark.parametrize("variant", VARIANTS)

@@ -128,8 +128,7 @@ def test_PBM_declares_the_capacitance_its_voltage_equation_divides_by():
     """Unlike `base_model_IM`, PBM's `Cm` is in `dv/dt`, so it is checkable.
 
     The value has to be the model's own parameter rather than a constant written out beside
-    it: the whole point of declaring it is that the network is checked against what the
-    membrane model actually integrates.
+    it, so that the network is checked against what the membrane model actually integrates.
     """
     model = from_gotranx(PBM, v_name="v", capacitance=5300 * fF)
     declared_in_the_model = PBM.init_parameter_values()[PBM.parameter_index("Cm")]

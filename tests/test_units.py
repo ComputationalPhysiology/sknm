@@ -88,8 +88,8 @@ def test_numpy_would_have_stripped_the_unit_without_converting():
     """Why `in_base_units` exists rather than a plain `np.asarray`.
 
     Asking numpy for an array of a quantity yields the magnitude in whatever unit the quantity
-    happens to carry. For ``16 * um`` that is the number 16 -- which, read as the base unit, is
-    16 cm. Four orders of magnitude, silently. Nothing in `sknm` may take that route.
+    happens to carry. For ``16 * um`` that is the number 16, which read as the base unit is
+    16 cm: four orders of magnitude, silently. Nothing in `sknm` may take that route.
     """
     lx = 16 * um
     assert np.asarray(lx) == 16.0

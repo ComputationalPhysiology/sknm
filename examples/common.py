@@ -4,23 +4,21 @@ The scripts are `fig02` through `fig05`; this module holds what they have in com
 paper's sweep samples, the setup that turns one point of a sweep into a running simulation,
 and a cache so that replotting does not mean resolving.
 
-**Fast by default.** Every script runs a reduced sample of its sweep unless
-``SKNM_EXAMPLES_FULL`` is set, and the reduction is *fewer points, never cheaper points*.
-Each point that is plotted is computed on the paper's own 40x40 sheet at its own 0.02 ms time
-step, so a fast figure and a full figure differ only in how many markers the curves carry. The
-two reductions that would have been faster both corrupt the result and are not offered:
+Every script runs a reduced sample of its sweep unless ``SKNM_EXAMPLES_FULL`` is set. The
+reduction drops points; it never makes a point cheaper. Each point that is plotted is computed
+on the paper's own 40x40 sheet at its own 0.02 ms time step, so a fast figure and a full figure
+differ only in how many markers the curves carry. Two reductions that would have been faster
+are not offered, because both corrupt the result:
 
-- **A smaller sheet.** Conduction velocity is not a local measurement. Halving the sheet's
-  height raises it by 13% and narrowing the sheet to the 35 cells the measurement columns
-  need raises it by 30%, because the wave stops spreading sideways and the far column moves
-  into the boundary. Both dwarf the KNM/SKNM differences these figures exist to show.
-- **A coarser time step.** A cell activates on the step its potential crosses the threshold,
-  so the velocity is quantized to about one part in the number of steps the wave takes to
-  cross. At 0.1 ms that is +/-2%, which is larger than the KNM/SKNM difference at 50%
-  extracellular volume -- the figures would show the two models disagreeing where the paper
-  shows them agreeing.
-
-What is left is the number of points, which changes no point's value.
+- A smaller sheet. Conduction velocity is not a local measurement. Halving the sheet's height
+  raises it by 13%, and narrowing the sheet to the 35 cells the measurement columns need raises
+  it by 30%, because the wave stops spreading sideways and the far column moves into the
+  boundary. Both dwarf the KNM/SKNM differences these figures exist to show.
+- A coarser time step. A cell activates on the step its potential crosses the threshold, so the
+  velocity is quantized to about one part in the number of steps the wave takes to cross. At
+  0.1 ms that is +/-2%, which is larger than the KNM/SKNM difference at 50% extracellular
+  volume, so the figures would show the two models disagreeing where the paper shows them
+  agreeing.
 """
 
 from __future__ import annotations
@@ -71,7 +69,7 @@ BETA_T_END = 1000.0
 BETA_THRESHOLD = presets.BETA_THRESHOLD.m_as(mV)
 
 #: Seed for the gap junction draws. The paper reuses one set of draws across every value of
-#: gamma and every variant, which is what makes its curves comparable point for point; one
+#: gamma and every variant, which is why its curves are comparable point for point; one
 #: seed, fixed here, does the same. The reference's own draws are in `random_picks/` and can be
 #: passed to `presets.vary_conductances` instead, in the order that directory writes them.
 DRAW_SEED = 0
@@ -281,7 +279,7 @@ class Setup:
         Returns
         -------
         sknm.analysis.ConductionPath
-            Matching this setup's cell size, which is what makes the distance right.
+            Matching this setup's cell size, so that the distance is right.
         """
         return presets.hipsc_conduction_path(self.nx, self.ny, alpha=self.alpha)
 
@@ -328,11 +326,11 @@ def beta_draws() -> npt.NDArray[np.float64]:
 class BetaSetup:
     """One point of a beta cell sweep, the sibling of `Setup`.
 
-    A separate dataclass rather than a cell type on `Setup`, because a setup **is** the cache
-    key: a shared class would carry an anisotropy factor into every beta label, where a beta
-    cell has none. What the two share is everything around them -- `ResultCache`, `sample`,
-    `measure_conduction_velocity` and the plotting -- which is what makes two small classes
-    cheaper than one general one.
+    A separate dataclass rather than a cell type on `Setup`, because a setup is the cache key:
+    a shared class would carry an anisotropy factor into every beta label, where a beta cell has
+    none. The two share everything around them, `ResultCache`, `sample`,
+    `measure_conduction_velocity` and the plotting, so two small classes come out cheaper than
+    one general one.
 
     Parameters
     ----------
@@ -345,16 +343,16 @@ class BetaSetup:
     dt : float, optional
         Time step in ms, by default the paper's 0.02.
     t_end : float, optional
-        How long to run for, in ms, by default 1000 -- twenty times the cardiac run, because a
+        How long to run for, in ms, by default 1000. Twenty times the cardiac run, because a
         beta wave is 150 times slower.
     threshold : float, optional
         Membrane potential at which a cell counts as activated, in mV, by default -50. A beta
         action potential peaks at about -19.5 mV, so the cardiac -20 would activate nothing.
     seed : int or None, optional
         Where the gap junction draws come from, by default `None`, meaning the reference
-        implementation's own draws for its 15 by 15 sheet -- which is what the paper's figures
-        need and what `beta_draws` returns. An integer seeds an RNG instead, which is the only
-        option on a sheet of another shape, since the committed draws describe one sheet.
+        implementation's own draws for its 15 by 15 sheet, which the paper's figures need and
+        `beta_draws` returns. An integer seeds an RNG instead, which is the only option on a
+        sheet of another shape, since the committed draws describe one sheet.
     """
 
     delta_e: float = presets.BETA_DELTA_E
@@ -480,9 +478,9 @@ class ResultCache:
     One file per script and sample, holding a label for every point and the value measured
     there. It is written after each point, so an interrupted sweep resumes where it stopped.
 
-    The key is the *parameters* of a run, which is everything except the code that ran them:
-    a cache cannot tell that the library has changed underneath it. Delete `CACHE_DIR`, or
-    pass ``--no-cache``, after changing anything `sknm` computes.
+    The key is the parameters of a run, which is everything except the code that ran them: a
+    cache cannot tell that the library has changed underneath it. Delete `CACHE_DIR`, or set
+    ``SKNM_EXAMPLES_NO_CACHE``, after changing anything `sknm` computes.
 
     Parameters
     ----------
@@ -498,9 +496,9 @@ class ResultCache:
     def __init__(self, name: str, *, enabled: bool = True, directory: Path = CACHE_DIR) -> None:
         self.path = directory / f"{name}.npz"
         self.enabled = enabled
-        # The run length and the threshold used to live here. They moved into the label, where
-        # `Setup` and `BetaSetup` carry them as fields, because the two setups do not share
-        # them: pinned here, one script's cache would discard the other's on every load.
+        # The run length and the threshold belong in the label, as fields of `Setup` and
+        # `BetaSetup`, because the two setups do not agree on them. Pinned here instead, one
+        # script's cache would discard the other's on every load.
         self._spec = json.dumps({"format": CACHE_FORMAT, "sknm": sknm.__version__}, sort_keys=True)
         self._values: dict[str, npt.NDArray[np.float64]] = {}
         if enabled and self.path.exists():
@@ -614,8 +612,8 @@ def snapshot_figure(
 ) -> Any:
     """Build one grid of sheet snapshots, a row per model, sharing a single colour scale.
 
-    One scale across every panel is what makes the rows comparable: drawn to their own
-    ranges, two sheets that differ by a rounding error would look different.
+    The rows can only be compared on one shared scale. Drawn to their own ranges, two sheets
+    that differ by a rounding error would look different.
 
     Parameters
     ----------
@@ -671,8 +669,8 @@ def snapshot_report(
 ) -> None:
     """Print each model's range at each snapshot, and how far apart two models are.
 
-    The figure shows two rows that should be indistinguishable; only a number says how
-    indistinguishable they actually are.
+    The figure shows two rows that should be indistinguishable, and only a number says how
+    close they actually are.
 
     Parameters
     ----------

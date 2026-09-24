@@ -1,4 +1,4 @@
-"""Generated from `base_model_IM.ode` -- do not edit by hand.
+"""Generated from `base_model_IM.ode`. Do not edit by hand.
 
 Regenerate with `python3 tools/generate_membrane_models.py`.
 

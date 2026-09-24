@@ -80,7 +80,7 @@ def documented_members(module: Any) -> list[Any]:
 
 
 def _summary(module: Any) -> str:
-    """A module's first docstring line, which is what a list of modules shows."""
+    """A module's first docstring line, which a list of modules shows beside its name."""
     if module.docstring is None:
         return ""
     return module.docstring.value.strip().splitlines()[0]
@@ -191,8 +191,8 @@ def _sections(docstring: Any) -> list[str]:
 def _signature(member: Any) -> str | None:
     """How the thing is called, or nothing for something that is not called.
 
-    A class that writes no `__init__` -- a protocol, or an exception that only names itself
-    -- has no signature to show, and griffe renders it as the bare name. A fence holding a
+    A class that writes no `__init__`, such as a protocol or an exception that only names
+    itself, has no signature to show, and griffe renders it as the bare name. A fence holding a
     name and no parentheses reads as a constructor that takes no arguments, which is a
     different claim, so there is nothing to render.
     """

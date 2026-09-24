@@ -47,7 +47,7 @@ def test_a_long_cell_conducts_better_along_its_length():
     conductivity. Worked from the reference's own expression with exact rationals.
 
     The paper's default sheet cannot see any of this. Its cells are square, so the two
-    components are equal and a mistake that exchanged them would be invisible -- while
+    components are equal and a mistake that exchanged them would be invisible there, while
     transposing the conductivity tensor of Figure 7's sheet.
     """
     Mi_x, Mi_y = bidomain.BidomainSetup(alpha=4.0).intracellular_conductivity()
@@ -58,7 +58,7 @@ def test_a_long_cell_conducts_better_along_its_length():
 
 
 def test_the_draws_are_the_reference_s_own_and_there_is_one_per_cell():
-    """One draw per *cell*, where the network model's are one per *connection*.
+    """One draw per cell, where the network model's are one per connection.
 
     1600 against 1560 on the same 40 by 40 sheet, and the two are not interchangeable.
     """
@@ -106,7 +106,7 @@ def test_no_variation_leaves_the_conductivity_uniform_whatever_the_draws_say():
 #
 # Equation (31) is an area integral of conductivities, in mS^2, and equation (32) is its
 # minimizer. It is not the network model's equation (29), which sums conductances over
-# connections and comes out in (mS/cm)^2 -- the two differ by four orders of magnitude and
+# connections and comes out in (mS/cm)^2. The two differ by four orders of magnitude, and
 # `sknm.CellNetwork.conductance_misfit` cannot stand in for this one.
 # --------------------------------------------------------------------------------------
 
@@ -120,7 +120,7 @@ def test_a_uniform_isotropic_conductivity_is_matched_exactly():
     """At alpha = 1 and gamma = 0 one ratio relates the two conductivities everywhere.
 
     That is the assumption the monodomain model rests on, so the misfit is zero and the two
-    continuum models coincide -- which is what Figure 6 shows.
+    continuum models coincide, as Figure 6 shows.
     """
     setup = bidomain.BidomainSetup()
 
@@ -143,7 +143,7 @@ def test_the_misfit_is_the_area_weighted_sum_the_reference_integrates():
         F = 1/2 * 1600 * lx*ly * [(Me - lam*Mi_x)^2 + (Me - lam*Mi_y)^2]
 
     An anisotropic cell with no variation, so every cell carries the same two components and
-    the sum is 1600 identical terms -- which makes the expected value hand-computable.
+    the sum is 1600 identical terms, which makes the expected value hand-computable.
     """
     setup = bidomain.BidomainSetup(alpha=4.0)
 
@@ -200,10 +200,10 @@ def test_the_membrane_is_advanced_however_short_the_time_step_is():
 # --------------------------------------------------------------------------------------
 # the mesh, the stimulus and the ground
 #
-# These are predicates on coordinates, so they are checked here on a grid built by hand
-# rather than on a mesh. That is what makes the stimulus test possible without `dolfinx`,
-# and the stimulus is the one place in this module where an off-by-one in the comparison
-# stops the wave from launching at all.
+# These are predicates on coordinates, so they are checked here on a grid built by hand rather
+# than on a mesh, which is how the stimulus can be tested without `dolfinx`. The stimulus is the
+# one place in this module where an off-by-one in the comparison stops the wave from launching
+# at all.
 # --------------------------------------------------------------------------------------
 
 
@@ -255,7 +255,7 @@ def _node_indices(setup):
 
 
 def _lumped_mass(setup):
-    """The area each node of the structured grid carries, which is what a nodal stimulus
+    """The area each node of the structured grid carries, and so the area a nodal stimulus
     drives: a full element square inside the sheet, half of one along an edge of it."""
     nx, ny = setup.elements()
     width, height = setup.domain_size()
@@ -272,7 +272,7 @@ def test_the_stimulated_membrane_is_exactly_the_strip_s_own_area(element_size, a
 
     A nodal stimulus drives each node's share of the membrane, so the stimulated area is the
     sum of the lumped masses of the nodes it reaches. That has to come out at the strip's own
-    area -- two cells by eleven -- or the sheet is given more or less current than the paper
+    area, two cells by eleven, or the sheet is given more or less current than the paper
     specifies, and it fires early or not at all.
 
     Checked across meshes that divide the cell and meshes that do not, because the two fail in
@@ -351,7 +351,7 @@ def test_the_nodes_on_the_edge_of_the_strip_get_half_the_stimulus():
     on_the_edge = (columns == 2 * per_x) | (rows == 14 * per_y) | (rows == 25 * per_y)
     expected = np.where(inside, np.where(on_the_edge, 0.5, 1.0), 0.0)
     # A corner of the strip is on two edges at once and takes a quarter: the strip covers one
-    # of the four quadrants its basis function spans. That is what makes the total come out at
+    # of the four quadrants its basis function spans, so the total comes out at
     # the strip's area rather than a half-element over it.
     corner = inside & (columns == 2 * per_x) & ((rows == 14 * per_y) | (rows == 25 * per_y))
     expected[corner] = 0.25
@@ -364,7 +364,7 @@ def test_the_probes_sit_where_the_paper_measures():
     """The wave is timed between the centres of cell columns 9 and 34, halfway up the sheet.
 
     Worth pinning directly rather than leaving to the published numbers. Moving the far probe
-    down to a quarter of the sheet's height changes the velocity by 1.0% -- enough to matter
+    down to a quarter of the sheet's height changes the velocity by 1.0%: enough to matter,
     and not enough for a table reproduced to within 1% to notice.
     """
     setup = bidomain.BidomainSetup()
@@ -418,7 +418,7 @@ def needs_dolfinx(test):
 
     Two things at once, because they always go together: the marker selects these tests, and
     the condition is what lets the rest of the suite stay green on a machine with neither
-    package -- which is every machine the other CI jobs run on.
+    package, which is every machine the other CI jobs run on.
     """
     return pytest.mark.skipif(not bidomain.available(), reason=bidomain.REQUIREMENT)(
         pytest.mark.dolfinx(test)
@@ -551,9 +551,9 @@ def test_the_two_triangles_of_a_cell_carry_the_same_conductivity():
 def test_the_bidomain_model_grounds_the_extracellular_potential_at_the_corner():
     """A Dirichlet corner, not the zero-mean multiplier `beat` reaches for by default.
 
-    The paper grounds there, the network model grounds at the same lower-left corner -- which
-    is what makes the two comparable -- and the multiplier is worse on every measured axis
-    here: it has no diagonal entry, so an incomplete factorization fails outright on it, and
+    The paper grounds there, and the network model grounds at the same lower-left corner, which
+    is what makes the two comparable. The multiplier is also worse on every measured axis here:
+    it has no diagonal entry, so an incomplete factorization fails outright on it, and
     truncating the Krylov iteration on the multiplier system moves ``max(u_e) - min(u_e)`` by
     3%, which is the quantity Figure 9's right panel plots.
     """
@@ -640,13 +640,12 @@ def test_the_two_models_agree_where_the_monodomain_assumption_holds_exactly():
 
     At alpha = 1 and gamma = 0 the intracellular conductivity is uniform and isotropic, so a
     single ratio relates it to the extracellular one everywhere and the bidomain system
-    reduces to the monodomain one exactly. The two are then not merely close: they agree to
-    the precision of the linear solves. Anything wrong with the extracellular block, the
-    ground, or the ratio shows up here as a difference in the third digit rather than the
-    eighth.
+    reduces to the monodomain one exactly, so the two agree to the precision of the linear
+    solves. Anything wrong with the extracellular block, the ground, or the ratio shows up here
+    as a difference in the third digit rather than the eighth.
 
-    The upstroke carries the evidence. The velocity is quantized by the time step -- both
-    probe times are multiples of it -- so two models that differed by a percent could still
+    The upstroke carries the evidence. The velocity is quantized by the time step, since both
+    probe times are multiples of it, so two models that differed by a percent could still
     report the same velocity; that the two activation times match exactly says only that the
     difference is below a time step. The upstroke is measured at 8e-9 relative, which is two
     direct factorizations of different matrices disagreeing in the last few bits over four
@@ -669,7 +668,7 @@ def test_the_two_models_agree_where_the_monodomain_assumption_holds_exactly():
 def test_the_potential_starts_at_the_membrane_model_s_resting_state():
     """Not at zero, which is where a fresh finite element function starts.
 
-    Nothing in a velocity measurement would notice -- the first step overwrites it -- but the
+    Nothing in a velocity measurement would notice, since the first step overwrites it, but the
     snapshots Figure 6 draws are read off this field, and a first frame of zeros is a frame of
     +77 mV.
     """
@@ -786,7 +785,7 @@ def test_the_continuum_and_network_models_agree_on_the_same_tissue(
     the models rather than about one implementation.
 
     They also share a stimulus and a ground: the same two columns of eleven cells, and the same
-    lower-left corner, which is what makes the comparison tight enough to be worth making.
+    lower-left corner, which tightens the comparison enough to make it worth making.
 
     Run at both ends of the anisotropy sweep. At alpha = 1 the cells are square and the
     conductivity is isotropic; at alpha = 4 they are 40 by 10 um and the two components of the
@@ -800,8 +799,8 @@ def test_the_continuum_and_network_models_agree_on_the_same_tissue(
 
     assert continuum.conduction_velocity == pytest.approx(velocity, rel=0.015)
     assert continuum.upstroke_rate == pytest.approx(upstroke, rel=0.025)
-    # And the wave passes each probe at the same moment, not merely at the same speed: a
-    # velocity is a difference of two times and would survive both being wrong together.
+    # And the wave passes each probe at the same moment, which a velocity alone would not
+    # show: a velocity is a difference of two times and survives both being wrong together.
     assert continuum.start_time == pytest.approx(activation[path.start], abs=0.5)
     assert continuum.end_time == pytest.approx(activation[path.end], abs=0.5)
 
@@ -912,8 +911,8 @@ def test_a_met_requirement_says_nothing_and_carries_on(monkeypatch, capsys):
 def test_every_continuum_script_guards_itself_before_it_computes(name):
     """A script that reached `build_mesh` without dolfinx would raise `NameError`, not speak.
 
-    The guard has to come before the first line that touches the machinery, so what is
-    checked is its position and not merely its presence.
+    The guard has to come before the first line that touches the machinery, so its position
+    is what is checked here, not just that it is there.
     """
     source = (EXAMPLES_DIR / f"{name}.py").read_text()
 
@@ -954,7 +953,7 @@ def test_a_snapshot_is_the_sheet_at_the_moment_it_names():
     """Which step a time is caught on, anchored against the run rather than against itself.
 
     The oracle is a run that keeps every step and then picks the one nearest the time asked
-    for — a different rule from the half-step window `snapshots` uses, so a window that
+    for. That is a different rule from the half-step window `snapshots` uses, so a window that
     slipped by a step would show here and nowhere else.
     """
     setup = bidomain.BidomainSetup(**COARSE)
