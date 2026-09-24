@@ -35,11 +35,13 @@ dimension, documented on the attribute. Conversion happens at the constructors a
 else.
 
 Quantities are built from pint's *application registry*, which is the registry pint hands to
-libraries so that quantities made elsewhere in a program interoperate with these::
+libraries so that quantities made elsewhere in a program interoperate with these:
 
-    from sknm.units import um, mS, cm
-    lx = 16 * um
-    conductivity = 4 * mS / cm
+```python
+from sknm.units import um, mS, cm
+lx = 16 * um
+conductivity = 4 * mS / cm
+```
 
 The names are ASCII transliterations -- `um` for the micrometre, `uF` for the microfarad --
 because mixing Greek mu into identifiers invites two spellings of the same name.

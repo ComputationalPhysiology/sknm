@@ -5,12 +5,14 @@ maximal upstroke velocity -- are both read off the membrane potential at *every*
 Sampling a `Result` cannot supply them: a trace recorded every millisecond resolves neither a
 threshold crossing to better than a millisecond nor an upstroke that lasts about one. So they
 are gathered by a callback instead, `ActivationRecorder`, which `Simulation.run` calls after
-each step::
+each step:
 
-    path = presets.hipsc_conduction_path(40, 40)
-    recorder = ActivationRecorder(sim, threshold=-20 * mV, stop_when_activated=path.end)
-    sim.run(50 * ms, record=(), callback=recorder)
-    velocity = conduction_velocity(recorder, path)
+```python
+path = presets.hipsc_conduction_path(40, 40)
+recorder = ActivationRecorder(sim, threshold=-20 * mV, stop_when_activated=path.end)
+sim.run(50 * ms, record=(), callback=recorder)
+velocity = conduction_velocity(recorder, path)
+```
 
 The recorder also ends the run as soon as the wave has arrived, which is most of the saving: a
 conduction velocity is known long before the 50 ms a full action potential takes.
