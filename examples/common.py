@@ -4,11 +4,11 @@ The scripts are `fig02` through `fig05`; this module holds what they have in com
 paper's sweep samples, the setup that turns one point of a sweep into a running simulation,
 and a cache so that replotting does not mean resolving.
 
-**Fast by default.** Every script runs a reduced sample of its sweep unless given ``--full``,
-and the reduction is *fewer points, never cheaper points*. Each point that is plotted is
-computed on the paper's own 40x40 sheet at its own 0.02 ms time step, so a fast figure and a
-full figure differ only in how many markers the curves carry. The two reductions that would
-have been faster both corrupt the result and are not offered:
+**Fast by default.** Every script runs a reduced sample of its sweep unless
+``SKNM_EXAMPLES_FULL`` is set, and the reduction is *fewer points, never cheaper points*.
+Each point that is plotted is computed on the paper's own 40x40 sheet at its own 0.02 ms time
+step, so a fast figure and a full figure differ only in how many markers the curves carry. The
+two reductions that would have been faster both corrupt the result and are not offered:
 
 - **A smaller sheet.** Conduction velocity is not a local measurement. Halving the sheet's
   height raises it by 13% and narrowing the sheet to the 35 cells the measurement columns
@@ -25,10 +25,10 @@ What is left is the number of points, which changes no point's value.
 
 from __future__ import annotations
 
-import argparse
 import dataclasses
 import json
-from collections.abc import Callable, Sequence
+import os
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -80,57 +80,114 @@ DRAW_SEED = 0
 CACHE_FORMAT = 2
 
 
-def parse_args(description: str) -> argparse.Namespace:
-    """Read the command line every figure script accepts.
+#: The environment variables a run is configured with, one per field of `Options`.
+#:
+#: A command line cannot reach these scripts. Each is also run as a notebook, where the
+#: process belongs to the Jupyter kernel and ``sys.argv`` describes the kernel's own
+#: invocation rather than the script's; the environment is what both ways of running share.
+OPTION_VARIABLES = (
+    "SKNM_EXAMPLES_FULL",
+    "SKNM_EXAMPLES_NO_CACHE",
+    "SKNM_EXAMPLES_OUTPUT_DIR",
+)
+
+#: What a flag variable may be set to. An empty value counts as false, because exporting a
+#: variable to the empty string is how a shell spells "unset".
+TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+FALSE_VALUES = frozenset({"0", "false", "no", "off", ""})
+
+
+@dataclasses.dataclass(frozen=True)
+class Options:
+    """How much of a sweep to run, whether to reuse cached results, and where to write.
+
+    Attributes
+    ----------
+    full : bool
+        Sweep the paper's full sample rather than every other point of it.
+    no_cache : bool
+        Resolve every point, ignoring and overwriting any cached result.
+    output_dir : pathlib.Path
+        Where the figure is written.
+    """
+
+    full: bool = False
+    no_cache: bool = False
+    output_dir: Path = FIGURE_DIR
+
+
+def _flag(name: str) -> bool:
+    """Read one environment variable as a boolean.
 
     Parameters
     ----------
-    description : str
-        What the script reproduces, shown by ``--help``.
+    name : str
+        The variable to read. An unset variable is false.
 
     Returns
     -------
-    argparse.Namespace
-        With `full`, `no_cache` and `output_dir`.
+    bool
+        What the variable is set to.
+
+    Raises
+    ------
+    ValueError
+        If the variable is set to something that is neither true nor false. Reading an
+        unrecognized value as false would run a different sweep than the one asked for and
+        say nothing about it.
     """
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument(
-        "--full",
-        action="store_true",
-        help="sweep the paper's full sample rather than every other point of it",
+    value = os.environ.get(name, "")
+    lowered = value.strip().lower()
+    if lowered in TRUE_VALUES:
+        return True
+    if lowered in FALSE_VALUES:
+        return False
+    raise ValueError(
+        f"{name} is set to {value!r}, which is neither true nor false; use one of "
+        f"{', '.join(sorted(TRUE_VALUES))} or {', '.join(sorted(FALSE_VALUES - {''}))}"
     )
-    parser.add_argument(
-        "--no-cache",
-        action="store_true",
-        help="resolve every point, ignoring and overwriting any cached results",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=FIGURE_DIR,
-        help=f"where to write the figure, by default {FIGURE_DIR}",
-    )
-    return parser.parse_args()
 
 
-def sample(points: Sequence[float], args: argparse.Namespace) -> tuple[float, ...]:
-    """Choose how much of a sweep to run, from ``--full``.
+def options() -> Options:
+    """Read how this run was asked to behave from the environment.
+
+    Returns
+    -------
+    Options
+        Set from `OPTION_VARIABLES`, defaulting to a fast, cached run that writes into
+        `FIGURE_DIR`.
+
+    Raises
+    ------
+    ValueError
+        If a flag variable is set to something that is neither true nor false.
+    """
+    directory = os.environ.get("SKNM_EXAMPLES_OUTPUT_DIR", "").strip()
+    return Options(
+        full=_flag("SKNM_EXAMPLES_FULL"),
+        no_cache=_flag("SKNM_EXAMPLES_NO_CACHE"),
+        output_dir=Path(directory) if directory else FIGURE_DIR,
+    )
+
+
+def sample(points: Sequence[float], options: Options) -> tuple[float, ...]:
+    """Choose how much of a sweep to run, from `Options.full`.
 
     Parameters
     ----------
     points : sequence of float
         The full sample, in order.
-    args : argparse.Namespace
-        From `parse_args`.
+    options : Options
+        From `options`.
 
     Returns
     -------
     tuple of float
-        `points` itself under ``--full``, otherwise every other one of them with both ends
-        kept. A reduced sample is always a subset, so a fast figure plots a subset of the
-        markers a full figure does, at the same values.
+        `points` itself when `options` is full, otherwise every other one of them with both
+        ends kept. A reduced sample is always a subset, so a fast figure plots a subset of
+        the markers a full figure does, at the same values.
     """
-    if args.full:
+    if options.full:
         return tuple(points)
     fewer = tuple(points[::2])
     if len(points) and points[-1] not in fewer:
@@ -507,6 +564,150 @@ class ResultCache:
         if self.enabled:
             self._save()
         return value
+
+
+def snapshots(
+    setup: Any, variant: Variant, times: Sequence[float], interval: float
+) -> npt.NDArray[np.float64]:
+    """Record the membrane potential across a sheet at each of a series of times.
+
+    Parameters
+    ----------
+    setup : Setup or BetaSetup
+        The sheet to run.
+    variant : Variant
+        Which model to solve.
+    times : sequence of float
+        When to read the sheet, in ms.
+    interval : float
+        How often to record, in ms. Chosen so that a sample lands on each of `times`.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(len(times), n_cells)``, in mV, in the order `times` asks for.
+    """
+    simulation = setup.simulation(variant)
+    result = simulation.run(max(times) * ms, record=("v",), record_every=interval * ms)
+    wanted = [int(np.argmin(np.abs(result.t - time))) for time in times]
+    missed = [
+        time
+        for time, index in zip(times, wanted, strict=True)
+        if abs(result.t[index] - time) > 0.5 * setup.dt
+    ]
+    if missed:
+        raise ValueError(
+            f"no sample was recorded within half a step of {missed} ms; a recording interval "
+            f"of {interval} ms does not land on every time asked for"
+        )
+    return np.ascontiguousarray(result.v[:, wanted].T)
+
+
+def snapshot_figure(
+    setup: Any,
+    recorded: Mapping[Variant, npt.NDArray[np.float64]],
+    variants: Sequence[Variant],
+    titles: Sequence[str],
+    *,
+    width: float | None = None,
+    height: float | None = None,
+) -> Any:
+    """Build one grid of sheet snapshots, a row per model, sharing a single colour scale.
+
+    One scale across every panel is what makes the rows comparable: drawn to their own
+    ranges, two sheets that differ by a rounding error would look different.
+
+    Parameters
+    ----------
+    setup : Setup or BetaSetup
+        The sheet the snapshots were taken on, for its shape.
+    recorded : mapping of Variant to numpy.ndarray
+        One array of shape ``(len(titles), n_cells)`` per model.
+    variants : sequence of Variant
+        The models to draw, one row each, in order.
+    titles : sequence of str
+        The column headings, one per snapshot.
+    width, height : float, optional
+        Figure size, by default `plotting.panel_grid`'s own.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The figure, unwritten.
+    """
+    # Imported here rather than at the top of the module: `plotting` pulls in matplotlib,
+    # which is an examples extra, and everything else in this module works without it.
+    import plotting
+
+    potentials = np.stack([recorded[variant] for variant in variants])
+    low, high = float(potentials.min()), float(potentials.max())
+
+    plotting.use_house_style()
+    size = {}
+    if width is not None:
+        size["width"] = width
+    if height is not None:
+        size["height"] = height
+    figure, grid = plotting.panel_grid(len(variants), len(titles), **size)
+    image = None
+    for row, variant in enumerate(variants):
+        for column, title in enumerate(titles):
+            axis = grid[row][column]
+            sheet = recorded[variant][column].reshape(setup.ny, setup.nx)
+            image = plotting.show_sheet(axis, sheet, low=low, high=high)
+            if row == 0:
+                axis.set_title(title)
+            if column == 0:
+                axis.set_ylabel(plotting.SERIES_LABEL[variant], fontsize=11, color=plotting.INK)
+    plotting.colour_scale(figure, image, grid, "membrane potential (mV)")
+    return figure
+
+
+def snapshot_report(
+    recorded: Mapping[Variant, npt.NDArray[np.float64]],
+    titles: Sequence[str],
+    variants: Sequence[Variant],
+    time_header: str,
+) -> None:
+    """Print each model's range at each snapshot, and how far apart two models are.
+
+    The figure shows two rows that should be indistinguishable; only a number says how
+    indistinguishable they actually are.
+
+    Parameters
+    ----------
+    recorded : mapping of Variant to numpy.ndarray
+        One array of shape ``(len(titles), n_cells)`` per model.
+    titles : sequence of str
+        The moment each snapshot was taken at, as it should be printed.
+    variants : sequence of Variant
+        Exactly two models: the ones the difference column is taken between.
+    time_header : str
+        The heading of the first column.
+    """
+    first, second = variants
+    difference = np.abs(recorded[first] - recorded[second])
+    print_table(
+        [
+            time_header,
+            f"{first.name} min",
+            f"{first.name} max",
+            f"{second.name} min",
+            f"{second.name} max",
+            f"max |{first.name} - {second.name}|",
+        ],
+        [
+            [
+                title,
+                float(recorded[first][index].min()),
+                float(recorded[first][index].max()),
+                float(recorded[second][index].min()),
+                float(recorded[second][index].max()),
+                f"{difference[index].max():.2e}",
+            ]
+            for index, title in enumerate(titles)
+        ],
+    )
 
 
 def write_figure(figure: Any, output_dir: Path, stem: str) -> Path:

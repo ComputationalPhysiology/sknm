@@ -5,8 +5,10 @@ references/
 third-party/
 # design notes and fact records
 .scratch/
-# includes docs/adr/
-docs/
+# architecture decision records, kept with the design notes rather than published
+docs/adr/
+# the notebooks the documentation build writes from examples/, and the site it renders
+docs/examples/
 
 # What the example scripts produce. Neither is committed: a cached result is keyed on the
 # parameters of its run and cannot tell that the library computing it has changed, so a

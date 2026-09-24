@@ -10,7 +10,6 @@ one, so the fast figure and the full figure disagree at the same marker.
 import importlib.util
 import json
 import sys
-from argparse import Namespace
 from pathlib import Path
 
 import numpy as np
@@ -35,8 +34,99 @@ def _load_common():
 
 common = _load_common()
 
-FULL = Namespace(full=True, no_cache=False, output_dir=None)
-FAST = Namespace(full=False, no_cache=False, output_dir=None)
+FULL = common.Options(full=True)
+FAST = common.Options(full=False)
+
+
+# --------------------------------------------------------------------------------------
+# the options the environment carries
+#
+# The scripts are run both as scripts and as notebooks, and a notebook's process is the
+# kernel's, whose command line belongs to the kernel. Everything a run can be asked for
+# therefore arrives through the environment, where both ways of running can reach it.
+# --------------------------------------------------------------------------------------
+
+
+def test_an_unconfigured_run_is_fast_cached_and_writes_to_the_figure_directory(monkeypatch):
+    for name in common.OPTION_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    assert common.options() == common.Options(
+        full=False, no_cache=False, output_dir=common.FIGURE_DIR
+    )
+
+
+def test_options_asked_for_nothing_in_particular_are_the_same_fast_cached_run():
+    """`Options()` is what a script gets before the environment is consulted at all."""
+    assert common.Options() == common.Options(
+        full=False, no_cache=False, output_dir=common.FIGURE_DIR
+    )
+
+
+def test_the_full_sweep_is_asked_for_through_the_environment(monkeypatch):
+    monkeypatch.setenv("SKNM_EXAMPLES_FULL", "1")
+    assert common.options().full is True
+
+
+def test_the_cache_is_disabled_through_the_environment(monkeypatch):
+    monkeypatch.setenv("SKNM_EXAMPLES_NO_CACHE", "1")
+    assert common.options().no_cache is True
+
+
+def test_the_output_directory_is_taken_from_the_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("SKNM_EXAMPLES_OUTPUT_DIR", str(tmp_path / "elsewhere"))
+    assert common.options().output_dir == tmp_path / "elsewhere"
+
+
+def test_an_empty_output_directory_means_the_default(monkeypatch):
+    """An exported-but-empty variable is how a shell spells "unset", and must read as one."""
+    monkeypatch.setenv("SKNM_EXAMPLES_OUTPUT_DIR", "")
+    assert common.options().output_dir == common.FIGURE_DIR
+
+
+@pytest.mark.parametrize("value", ["1", "true", "TRUE", "True", "yes", "on"])
+def test_a_flag_is_set_by_any_of_the_usual_spellings(monkeypatch, value):
+    monkeypatch.setenv("SKNM_EXAMPLES_FULL", value)
+    assert common.options().full is True
+
+
+@pytest.mark.parametrize("value", ["0", "false", "FALSE", "no", "off", ""])
+def test_a_flag_is_cleared_by_any_of_the_usual_spellings(monkeypatch, value):
+    monkeypatch.setenv("SKNM_EXAMPLES_FULL", value)
+    assert common.options().full is False
+
+
+@pytest.mark.parametrize("name", ["SKNM_EXAMPLES_FULL", "SKNM_EXAMPLES_NO_CACHE"])
+def test_a_flag_that_cannot_be_read_as_a_boolean_is_refused(monkeypatch, name):
+    """Silently reading a misspelling as false would run the wrong sweep and say nothing."""
+    monkeypatch.setenv(name, "flase")
+    with pytest.raises(ValueError, match=name):
+        common.options()
+
+
+def test_the_refusal_quotes_the_value_it_could_not_read(monkeypatch):
+    monkeypatch.setenv("SKNM_EXAMPLES_FULL", "sometimes")
+    with pytest.raises(ValueError, match="sometimes"):
+        common.options()
+
+
+@pytest.mark.parametrize("value", [" 1 ", "1\n", "\ttrue "])
+def test_a_flag_is_read_through_the_whitespace_a_shell_leaves_behind(monkeypatch, value):
+    monkeypatch.setenv("SKNM_EXAMPLES_FULL", value)
+    assert common.options().full is True
+
+
+def test_an_output_directory_of_only_whitespace_means_the_default(monkeypatch):
+    monkeypatch.setenv("SKNM_EXAMPLES_OUTPUT_DIR", "   ")
+    assert common.options().output_dir == common.FIGURE_DIR
+
+
+def test_every_option_has_a_variable_that_sets_it(monkeypatch):
+    """The names the scripts document are the names `options` reads, with nothing left over."""
+    assert set(common.OPTION_VARIABLES) == {
+        "SKNM_EXAMPLES_FULL",
+        "SKNM_EXAMPLES_NO_CACHE",
+        "SKNM_EXAMPLES_OUTPUT_DIR",
+    }
 
 
 # --------------------------------------------------------------------------------------
@@ -95,6 +185,143 @@ def test_an_even_length_sweep_keeps_its_last_point():
 
 def test_an_odd_length_sweep_is_not_given_its_last_point_twice():
     assert common.sample((1.0, 1.5, 2.0, 3.0, 4.0), FAST) == (1.0, 2.0, 4.0)
+
+
+# --------------------------------------------------------------------------------------
+# the snapshots the wave figures are drawn from
+#
+# Three scripts draw a sheet at a series of fixed times, and each is a linear page rather
+# than an importable module, so what they share lives here rather than in one of them.
+# --------------------------------------------------------------------------------------
+
+SMALL = dict(nx=3, ny=3, t_end=10.0)
+
+#: `snapshot_figure` is the only thing in this module that draws, and matplotlib arrives with
+#: the `examples` extra rather than `test`. Everything else here -- the sweeps, the cache keys
+#: and the snapshot arithmetic -- is checked on a machine without it.
+needs_matplotlib = pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None,
+    reason="matplotlib is an examples extra",
+)
+
+
+def test_a_snapshot_is_recorded_for_every_time_asked_for():
+    setup = common.Setup(**SMALL)
+
+    frames = common.snapshots(setup, Variant.KNM, (2.0, 4.0, 6.0), 2.0)
+
+    assert frames.shape == (3, setup.nx * setup.ny)
+    assert np.isfinite(frames).all()
+
+
+def test_a_snapshot_is_taken_at_the_nearest_recorded_moment():
+    """A time given with floating point slop still resolves to the sample it means.
+
+    The last time asked for sets how long the run is, so it is held fixed and only the
+    first one is nudged, by less than half a step.
+    """
+    setup = common.Setup(**SMALL)
+
+    nudged = common.snapshots(setup, Variant.KNM, (4.0 + 0.4 * setup.dt, 6.0), 2.0)
+    exact = common.snapshots(setup, Variant.KNM, (4.0, 6.0), 2.0)
+
+    np.testing.assert_array_equal(nudged[0], exact[0])
+
+
+def test_the_snapshots_come_back_in_the_order_they_were_asked_for():
+    """Asked for in descending order, so that sorting the moments would be visible."""
+    setup = common.Setup(**SMALL)
+
+    ascending = common.snapshots(setup, Variant.KNM, (2.0, 6.0), 2.0)
+    descending = common.snapshots(setup, Variant.KNM, (6.0, 2.0), 2.0)
+
+    np.testing.assert_array_equal(ascending[0], descending[1])
+    np.testing.assert_array_equal(ascending[1], descending[0])
+    assert not np.array_equal(ascending[0], ascending[1])
+
+
+def test_a_moment_no_sample_lands_on_is_refused():
+    """A recording interval that does not divide the times asked for would draw panels
+    labelled with one moment and computed at another, which nothing downstream could see."""
+    setup = common.Setup(**SMALL)
+
+    with pytest.raises(ValueError, match=r"3\.0"):
+        common.snapshots(setup, Variant.KNM, (3.0, 6.0), 4.0)
+
+
+def test_the_snapshot_report_prints_a_row_for_every_moment(capsys):
+    setup = common.Setup(**SMALL)
+    times = (2.0, 4.0)
+    recorded = {v: common.snapshots(setup, v, times, 2.0) for v in (Variant.KNM, Variant.SKNM)}
+
+    common.snapshot_report(recorded, ["2 ms", "4 ms"], (Variant.KNM, Variant.SKNM), "t")
+
+    printed = capsys.readouterr().out
+    assert printed.count("2 ms") == 1
+    assert printed.count("4 ms") == 1
+
+
+def test_the_snapshot_report_names_the_models_in_the_order_it_was_given_them(capsys):
+    setup = common.Setup(**SMALL)
+    recorded = {v: common.snapshots(setup, v, (2.0,), 2.0) for v in (Variant.KNM, Variant.SKNM)}
+
+    common.snapshot_report(recorded, ["2 ms"], (Variant.SKNM, Variant.KNM), "t")
+
+    header = capsys.readouterr().out.splitlines()[0]
+    assert header.index("SKNM min") < header.index("KNM min")
+    assert "max |SKNM - KNM|" in header
+
+
+def test_the_snapshot_report_measures_one_model_against_the_other(capsys):
+    """Differencing a model with itself would print a column of exact zeros and read as
+    perfect agreement."""
+    setup = common.Setup(**SMALL)
+    variants = (Variant.KNM, Variant.SKNM)
+    recorded = {v: common.snapshots(setup, v, (2.0, 4.0), 2.0) for v in variants}
+    recorded[Variant.SKNM] = recorded[Variant.SKNM] + 1.0
+
+    common.snapshot_report(recorded, ["2 ms", "4 ms"], variants, "t")
+
+    assert "0.00e+00" not in capsys.readouterr().out
+
+
+@needs_matplotlib
+def test_the_snapshot_figure_has_a_panel_for_every_model_and_moment():
+    setup = common.Setup(**SMALL)
+    titles = ["2 ms", "4 ms", "6 ms"]
+    variants = (Variant.KNM, Variant.SKNM)
+    recorded = {v: common.snapshots(setup, v, (2.0, 4.0, 6.0), 2.0) for v in variants}
+
+    figure = common.snapshot_figure(setup, recorded, variants, titles)
+
+    # Two rows of three panels, plus the axis the shared colour scale is drawn into.
+    assert len(figure.axes) == len(variants) * len(titles) + 1
+
+
+@needs_matplotlib
+def test_the_snapshot_figure_puts_a_moment_in_every_column_and_a_model_in_every_row():
+    """A transposed grid has the same number of panels, so only their labelling shows it."""
+    setup = common.Setup(**SMALL)
+    titles = ["2 ms", "4 ms", "6 ms"]
+    variants = (Variant.KNM, Variant.SKNM)
+    recorded = {v: common.snapshots(setup, v, (2.0, 4.0, 6.0), 2.0) for v in variants}
+
+    figure = common.snapshot_figure(setup, recorded, variants, titles)
+
+    assert [a.get_title() for a in figure.axes if a.get_title()] == titles
+
+
+@needs_matplotlib
+def test_every_panel_of_a_snapshot_figure_is_on_one_colour_scale():
+    """Drawn to their own ranges, two sheets differing by a rounding error look different."""
+    setup = common.Setup(**SMALL)
+    variants = (Variant.KNM, Variant.SKNM)
+    recorded = {v: common.snapshots(setup, v, (2.0, 6.0), 2.0) for v in variants}
+
+    figure = common.snapshot_figure(setup, recorded, variants, ["2 ms", "6 ms"])
+
+    scales = {image.get_clim() for axis in figure.axes for image in axis.images}
+    assert len(scales) == 1
 
 
 # --------------------------------------------------------------------------------------

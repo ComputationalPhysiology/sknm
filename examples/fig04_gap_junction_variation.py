@@ -1,18 +1,21 @@
-"""Figures 4 and S2: conduction velocity against gap junction variation.
+# %% [markdown]
+# # Figures 4 and S2 — conduction velocity against gap junction variation
+#
+# Spreading the gap junction conductances is the sharpest test of SKNM's assumption. The
+# extracellular conductance of every connection stays the same while the intracellular
+# conductance varies, so no single ratio can relate them and the assumption cannot hold at
+# all. The paper's finding is that the two models still agree closely, except where the
+# extracellular space is small, and that they part company further as the spread widens.
+#
+# One page for both figures because they are one sweep: **S2 is Figure 4 with SKNM(u_e=0)
+# added**, and computing it separately would mean running the other two models twice.
+#
+# This page is also the script `examples/fig04_gap_junction_variation.py`, and runs either
+# way. Set `SKNM_EXAMPLES_FULL=1` to sweep the paper's full sample rather than every other
+# point of it.
 
-Spreading the gap junction conductances is the sharpest test of SKNM's assumption. The
-extracellular conductance of every connection stays the same while the intracellular
-conductance varies, so no single ratio can relate them and the assumption cannot hold at all.
-The paper's finding is that the two models still agree closely, except where the extracellular
-space is small, and that they part company further as the spread widens.
-
-One script for both figures because they are one sweep: **S2 is Figure 4 with SKNM(u_e=0)
-added**, and computing it separately would mean running the other two models twice.
-
-    python examples/fig04_gap_junction_variation.py [--full]
-"""
-
-from __future__ import annotations
+# %%
+import matplotlib.pyplot as plt
 
 import common
 import plotting
@@ -23,58 +26,43 @@ from sknm import Variant
 FIGURE_4_VARIANTS = (Variant.KNM, Variant.SKNM)
 FIGURE_S2_VARIANTS = (Variant.KNM, Variant.SKNM, Variant.SKNM_UE0)
 
+options = common.options()
+variations = common.sample(common.GAP_JUNCTION_VARIATIONS, options)
+print(variations)
 
-def main() -> None:
-    args = common.parse_args(__doc__.splitlines()[0])
-    variations = common.sample(common.GAP_JUNCTION_VARIATIONS, args)
-    cache = common.ResultCache(
-        f"fig04-{'full' if args.full else 'fast'}", enabled=not args.no_cache
-    )
+# %% [markdown]
+# ## The sweep
+#
+# One conduction velocity per extracellular volume fraction, gap junction spread and model.
+# Each is the paper's own 40x40 sheet at its 0.02 ms step.
 
-    velocities: dict[tuple[float, float, Variant], float] = {}
-    for delta_e in common.EXTRACELLULAR_FRACTIONS:
-        for gamma in variations:
-            setup = common.Setup(delta_e=delta_e, gamma=gamma)
-            for variant in FIGURE_S2_VARIANTS:
-                label = setup.label(variant=variant, quantity="conduction_velocity")
-                value = cache.compute(
-                    label,
-                    lambda s=setup, v=variant: common.measure_conduction_velocity(s, v),
-                )
-                velocities[delta_e, gamma, variant] = float(value)
+# %%
+cache = common.ResultCache(
+    f"fig04-{'full' if options.full else 'fast'}", enabled=not options.no_cache
+)
 
-    plotting.use_house_style()
-    for stem, variants in (
-        ("fig04_gap_junction_variation", FIGURE_4_VARIANTS),
-        ("figS2_gap_junction_variation", FIGURE_S2_VARIANTS),
-    ):
-        figure = _draw(variations, velocities, variants)
-        common.write_figure(figure, args.output_dir, stem)
+velocities: dict[tuple[float, float, Variant], float] = {}
+for delta_e in common.EXTRACELLULAR_FRACTIONS:
+    for gamma in variations:
+        setup = common.Setup(delta_e=delta_e, gamma=gamma)
+        for variant in FIGURE_S2_VARIANTS:
+            label = setup.label(variant=variant, quantity="conduction_velocity")
+            value = cache.compute(
+                label,
+                lambda s=setup, v=variant: common.measure_conduction_velocity(s, v),
+            )
+            velocities[delta_e, gamma, variant] = float(value)
 
-    common.print_table(
-        [
-            "gamma",
-            *(
-                f"{common.panel_title(d)} {v.name}"
-                for d in common.EXTRACELLULAR_FRACTIONS
-                for v in FIGURE_S2_VARIANTS
-            ),
-        ],
-        [
-            [
-                f"{gamma:g}",
-                *(
-                    velocities[delta_e, gamma, variant]
-                    for delta_e in common.EXTRACELLULAR_FRACTIONS
-                    for variant in FIGURE_S2_VARIANTS
-                ),
-            ]
-            for gamma in variations
-        ],
-    )
+# %% [markdown]
+# ## The two figures
+#
+# The same panels drawn twice, once with two models and once with three. The third is
+# SKNM(u_e=0), which is where the extracellular potential is dropped rather than eliminated,
+# and it is the one that comes apart as the extracellular space shrinks.
 
 
-def _draw(variations, velocities, variants):
+# %%
+def draw(variants):
     """One small-multiples figure over the four extracellular volume fractions."""
     figure, axes = plotting.small_multiples(len(common.EXTRACELLULAR_FRACTIONS))
     for axis, delta_e in zip(axes, common.EXTRACELLULAR_FRACTIONS, strict=True):
@@ -98,5 +86,39 @@ def _draw(variations, velocities, variants):
     return figure
 
 
-if __name__ == "__main__":
-    main()
+plotting.use_house_style()
+for stem, variants in (
+    ("fig04_gap_junction_variation", FIGURE_4_VARIANTS),
+    ("figS2_gap_junction_variation", FIGURE_S2_VARIANTS),
+):
+    common.write_figure(draw(variants), options.output_dir, stem)
+plt.show()
+
+# %% [markdown]
+# ## The numbers behind them
+#
+# The three models stay within a fraction of a percent at 50% extracellular volume and
+# separate as it shrinks, most of all at the widest spread.
+
+# %%
+common.print_table(
+    [
+        "gamma",
+        *(
+            f"{common.panel_title(d)} {v.name}"
+            for d in common.EXTRACELLULAR_FRACTIONS
+            for v in FIGURE_S2_VARIANTS
+        ),
+    ],
+    [
+        [
+            f"{gamma:g}",
+            *(
+                velocities[delta_e, gamma, variant]
+                for delta_e in common.EXTRACELLULAR_FRACTIONS
+                for variant in FIGURE_S2_VARIANTS
+            ),
+        ]
+        for gamma in variations
+    ],
+)
