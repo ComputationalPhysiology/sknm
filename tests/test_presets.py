@@ -2,7 +2,7 @@
 
 Every geometric test here uses `alpha=1.5`, the 21x14 um cell. At `alpha=1` the paper's cells
 are 16x16 um, so an x-direction connection and a y-direction connection have the same length
-*and* the same cross-section, and a sheet that confused its two axes would look identical. Only
+and the same cross-section, and a sheet that confused its two axes would look identical. Only
 `tests/test_validation.py` uses `alpha=1`, because that is what the published table was
 computed at.
 """
@@ -574,9 +574,9 @@ def test_the_stimulated_block_is_the_reference_s_rows(nx, ny, first, rows):
     """The C stimulates a window in y given in cell widths, with a node at each cell centre.
 
     For hiPSC-CMs `14*ly < y < 25*ly` is rows 14 to 24; for beta cells `5*ly < y < 10*ly` is
-    rows 5 to 9. Both come out as the block of `rows` rows centred in the sheet -- which for
-    the cardiac sheet also happens to be the measurement row, and for the beta sheet is one
-    row above it.
+    rows 5 to 9. Both come out as the block of `rows` rows centred in the sheet, which for the
+    cardiac sheet also happens to be the measurement row, and for the beta sheet is one row
+    above it.
     """
     if nx == 40:
         stimulated = presets.hipsc_stimulus_amplitude(nx, ny) > 0

@@ -1,16 +1,16 @@
 # %% [markdown]
-# # Figure 9 — why the two continuum models differ
+# # Figure 9: why the two continuum models differ
 #
 # The counterpart of Figure 5, and the same argument about a different pair of models. The
 # error the monodomain model makes is the product of two things: how far the conductivities
 # are from being related by a single ratio, and how much the extracellular potential varies.
 #
-# - **Left.** $F(\lambda)$, the misfit the ratio is chosen to minimize, as the gap junction
+# - Left: $F(\lambda)$, the misfit the ratio is chosen to minimize, as the gap junction
 #   conductances are spread. It rises from zero, so the first factor grows with the spread.
-#   This needs no mesh at all — the intracellular conductivity is constant within a cell and
+#   This needs no mesh at all: the intracellular conductivity is constant within a cell and
 #   the extracellular one is constant everywhere, so the integral is an exact finite sum.
-# - **Right.** How far apart the extracellular potential gets across the sheet during a run,
-#   as the extracellular volume fraction grows. It falls, so the second factor shrinks. This
+# - Right: how far apart the extracellular potential gets across the sheet during a run, as
+#   the extracellular volume fraction grows. It falls, so the second factor shrinks. This
 #   needs the bidomain model, the only one of the two that solves for an extracellular
 #   potential.
 #

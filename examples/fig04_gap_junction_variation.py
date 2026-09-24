@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Figures 4 and S2 — conduction velocity against gap junction variation
+# # Figures 4 and S2: conduction velocity against gap junction variation
 #
 # Spreading the gap junction conductances is the sharpest test of SKNM's assumption. The
 # extracellular conductance of every connection stays the same while the intracellular
@@ -7,8 +7,8 @@
 # all. The paper's finding is that the two models still agree closely, except where the
 # extracellular space is small, and that they part company further as the spread widens.
 #
-# One page for both figures because they are one sweep: **S2 is Figure 4 with SKNM(u_e=0)
-# added**, and computing it separately would mean running the other two models twice.
+# One page for both figures because they are one sweep: S2 is Figure 4 with SKNM(u_e=0)
+# added, and computing it separately would mean running the other two models twice.
 #
 # This page is also the script `examples/fig04_gap_junction_variation.py`, and runs either
 # way. Set `SKNM_EXAMPLES_FULL=1` to sweep the paper's full sample rather than every other

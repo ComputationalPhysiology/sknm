@@ -9,7 +9,7 @@ without reference to any of this code.
 
 The membrane models here are real implementations rather than mocks: FitzHugh-Nagumo where
 dynamics are wanted, and a `Quiescent` model where they are in the way. The one exception is
-`CountingSolver`, which counts calls rather than changing answers -- and it exists because no
+`CountingSolver`, which counts calls rather than changing answers. It exists because no
 assertion on a returned value can tell a cached factorization from one redone every step.
 """
 
@@ -103,10 +103,10 @@ class Quiescent:
 
 
 class BuriedPotential:
-    """A quiescent model whose membrane potential is its *second* state, not its first.
+    """A quiescent model whose membrane potential is its second state rather than its first.
 
     Both models the tests otherwise use put the membrane potential in row zero, so nothing
-    distinguishes "the row the model names" from "the first row" -- while the shipped hiPSC-CM
+    distinguishes "the row the model names" from "the first row", while the shipped hiPSC-CM
     model puts `V_m` in row twenty-four. The states on either side of it are constants, so a
     simulation that reached for the wrong row would both read and write the wrong numbers.
     """
@@ -152,8 +152,8 @@ class InPlace(Quiescent):
 class DeclaredCapacitance(FitzHughNagumo):
     """FitzHugh-Nagumo that declares a capacitance, so the check has something to compare.
 
-    Neither shipped model declares one -- the hiPSC-CM model's voltage equation does not use
-    the capacitance it exposes -- so the check would otherwise be unreachable from a test.
+    Neither shipped model declares one, since the hiPSC-CM model's voltage equation does not
+    use the capacitance it exposes, so the check would otherwise be unreachable from a test.
     """
 
     def __init__(self, capacitance):
@@ -350,8 +350,8 @@ def test_every_solver_runs_the_same_simulation(strand, variant, solver):
 
     An iterative solver leaves a residual of `rtol` behind on every one of the thousand steps
     here, and the membrane model is nonlinear, so the tolerance is against the amplitude of the
-    wave -- about three -- rather than against each value. A solver that had actually changed
-    the physics would move the upstroke, which is far larger than this.
+    wave, about three, rather than against each value. A solver that had actually changed the
+    physics would move the upstroke, which is far larger than this.
     """
     exact = stimulated(
         Simulation(strand, fitzhugh_nagumo(), variant=variant, dt=DT, solver=DirectSolver())

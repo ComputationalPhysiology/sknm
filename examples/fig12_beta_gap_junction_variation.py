@@ -1,20 +1,19 @@
 # %% [markdown]
-# # Figures 12 and S1 — beta cell conduction velocity against gap junction variation
+# # Figures 12 and S1: beta cell conduction velocity against gap junction variation
 #
-# The beta counterpart of Figures 4 and S2, and the contrast with them is the point. There,
-# the three models separate as the extracellular space shrinks, and SKNM(u_e=0) is 12% out at
-# 2%. Here all four panels and all three models coincide.
+# The beta counterpart of Figures 4 and S2, and worth reading against them. There, the three
+# models separate as the extracellular space shrinks, and SKNM(u_e=0) is 12% out at 2%. Here
+# all four panels and all three models coincide.
 #
-# That is not a coincidence, and this page prints the reason rather than leaving it to the
-# eye: the conductance ratio $\lambda$ is around 65,000 at every extracellular volume the
-# paper tries, because a gap junction resistance a thousand times the cardiac one swamps both
-# conductivities. SKNM's $\lambda / (1 + \lambda)$ is then 1 to five figures, which is exactly
-# the assumption SKNM(u_e=0) makes outright — so the three models are solving the same
-# algebraic system. The Supplementary predicts this in words ("we would also arrive at the
-# same model if we assumed Ge >> Gi"); the second table below is the number.
+# The second table below prints the reason. The conductance ratio $\lambda$ is around 65,000 at
+# every extracellular volume the paper tries, because a gap junction resistance a thousand
+# times the cardiac one swamps both conductivities. SKNM's $\lambda / (1 + \lambda)$ is then 1
+# to five figures, which is the assumption SKNM(u_e=0) makes outright, so the three models are
+# solving the same algebraic system. The Supplementary predicts this in words ("we would also
+# arrive at the same model if we assumed Ge >> Gi").
 #
-# One page for both figures because they are one sweep: **S1 is Figure 12 with SKNM(u_e=0)
-# added**, and computing it separately would mean running the other two models twice.
+# One page for both figures because they are one sweep: S1 is Figure 12 with SKNM(u_e=0)
+# added, and computing it separately would mean running the other two models twice.
 #
 # The sweep uses the reference implementation's own draws, committed under `data/`, because a
 # seeded draw moves this sheet's velocity by 20% at $\gamma = 1$.
@@ -62,8 +61,8 @@ for delta_e in common.EXTRACELLULAR_FRACTIONS:
 # %% [markdown]
 # ## The two figures
 #
-# One y scale across all four panels, which the published figure also uses. It is what makes
-# "the panels coincide" visible: on scales of their own, four identical curves are drawn four
+# One y scale across all four panels, which the published figure also uses. It is what lets a
+# reader see that the panels coincide: on scales of their own, four identical curves are drawn four
 # different sizes and read as four different results.
 
 
@@ -129,7 +128,7 @@ common.print_table(
 # ## Why the panels coincide
 #
 # Four panels a reader cannot tell apart are a result, but a picture of them cannot show
-# whether they were computed or copied. These two columns are what make it evidence.
+# whether they were computed or copied. These two columns show the arithmetic behind them.
 
 # %%
 rows = []

@@ -13,7 +13,7 @@ continuum.
 **Cell network**:
 The collection of cells and the connections between them, together with their geometry and
 conductances. An arbitrary graph, not necessarily a sheet.
-_Avoid_: tissue (implies a homogenized continuum, which is what these models are not), mesh,
+_Avoid_: tissue (implies a homogenized continuum, which these models are not), mesh,
 grid, sheet (a sheet is one shape of network)
 
 **Cell**:
@@ -68,9 +68,9 @@ property of a network's conductances, not a free parameter.
 
 **Conductance misfit** (`F(λ)`):
 How far a network is from letting a single λ relate every connection's extracellular and
-intracellular conductance — the weighted sum of squares that λ is chosen to minimize. Zero
-means SKNM's assumption holds exactly; it grows as gap junctions are spread or cells are
-elongated, which is where SKNM and KNM start to disagree.
+intracellular conductance: the weighted sum of squares that λ is chosen to minimize. Zero means
+SKNM's assumption holds exactly. It grows as gap junctions are spread or cells are elongated,
+which is where SKNM and KNM start to disagree.
 
 **Extracellular volume fraction** (`δe`):
 How much of the network's volume lies outside the cells.

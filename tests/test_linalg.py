@@ -2,8 +2,9 @@
 
 Every solver here is asserted against `DirectSolver`, which is exact: a sparse LU of an SPD
 matrix has no tolerance to tune, so it is the reference the iterative ones are measured by
-rather than a fourth opinion. The tests that matter are therefore comparisons, not absolute
-values -- and the one about `maxiter` is about what happens when a solver *cannot* answer.
+rather than a fourth opinion. The tests that matter are therefore comparisons rather than
+absolute values, and the one about `maxiter` covers what happens when a solver cannot
+answer.
 """
 
 import dataclasses
@@ -80,7 +81,7 @@ def test_the_iterative_solvers_agree_with_the_exact_one(varied_sheet, variant, s
 
     `rtol` bounds the residual, not the solution, and the KNM system is conditioned well
     enough to turn its default 1e-6 residual into a 3e-4 disagreement on the extracellular
-    entries, which are near zero. Tightening the tolerance is what makes this a statement
+    entries, which are near zero. Tightening the tolerance turns this into a statement
     about the two solvers computing the same thing rather than about a condition number.
     """
     solver = dataclasses.replace(solver, rtol=1e-13)
@@ -95,7 +96,7 @@ def test_the_iterative_solvers_agree_with_the_exact_one(varied_sheet, variant, s
 
 @pytest.mark.parametrize("solver", SOLVERS)
 def test_one_factorization_serves_many_right_hand_sides(varied_sheet, solver):
-    """The whole point of the seam: prepare once, solve repeatedly against the same matrix."""
+    """What the seam is for: prepare once, then solve repeatedly against the same matrix."""
     operator = assemble(varied_sheet, dt=DT, variant=Variant.SKNM)
     solve = solver.factorize(operator.matrix)
 
@@ -169,7 +170,7 @@ def test_a_preconditioner_reduces_the_iterations_needed(varied_sheet):
 
     Nothing about the answer can tell a preconditioner that was applied from one that was
     built and then dropped, or from one assembled upside down, because the solve converges to
-    the same place either way. The count is the whole observable.
+    the same place either way. The count is all there is to observe.
     """
     operator = assemble(varied_sheet, dt=DT, variant=Variant.KNM)
     rhs = operator.rhs(ramp(varied_sheet.n_cells))
@@ -233,7 +234,7 @@ def test_the_direct_solver_solves_the_matrix_it_was_given_and_not_its_transpose(
     """Every matrix this package assembles is symmetric, which hides a transpose completely.
 
     `DirectSolver` is a general sparse LU and is public, so a caller may hand it a matrix that
-    is not symmetric -- and then which of the two it factorized is the whole answer.
+    is not symmetric, and then which of the two it factorized decides the answer.
     """
     matrix = sp.csr_array(np.array([[2.0, 1.0, 0.0], [0.0, 3.0, 1.0], [0.0, 0.0, 4.0]]))
     rhs = np.array([1.0, 2.0, 3.0])

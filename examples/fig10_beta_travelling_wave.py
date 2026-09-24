@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Figure 10 — a travelling wave across 15x15 pancreatic beta cells
+# # Figure 10: a travelling wave across 15x15 pancreatic beta cells
 #
 # The beta counterpart of Figure 2, and the same claim: with every connection carrying the
 # same conductances, a single ratio relates the extracellular and intracellular conductance of
@@ -8,9 +8,9 @@
 #
 # It holds far more comfortably here than it does for cardiac cells. The gap junction
 # resistance between beta cells is a thousand times the cardiac one, so it swamps both
-# conductivities and the conductance ratio comes out around 65,000 rather than 40 — which is
-# why the wave is 150 times slower, why the snapshots are in seconds rather than
-# milliseconds, and why even SKNM(u_e=0) is indistinguishable from KNM here.
+# conductivities and the conductance ratio comes out around 65,000 rather than 40. That is why
+# the wave is 150 times slower, why the snapshots are in seconds rather than milliseconds, and
+# why even SKNM(u_e=0) is indistinguishable from KNM here.
 #
 # This page is also the script `examples/fig10_beta_travelling_wave.py`, and runs either way.
 # It is cheap enough that `SKNM_EXAMPLES_FULL` changes nothing: there is no sweep to reduce,

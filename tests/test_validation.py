@@ -16,24 +16,24 @@ which is the price of a wave that has to cross a sheet before it can be timed.
 
 Four tolerances, all argued from measurement rather than tuned:
 
-- **hiPSC conduction velocity, 1%.** The measurement comes out at 0.22%. Below about 0.5% the
+- hiPSC conduction velocity, 1%. The measurement comes out at 0.22%. Below about 0.5% the
   assertion would be pinning noise rather than behaviour: the table quotes three significant
   figures, which is 0.13% on its own, and a threshold crossing is resolved to one step at each
   end of a transit of some five hundred, which is another 0.37%.
-- **hiPSC maximal upstroke velocity, 2%**, the paper's own stated accuracy at this time step.
-  The measurement comes out at 1.6%, and the gap is understood: the reference post-processes a
-  trace it writes *before* each step's spatial solve, so its estimate and this one bracket the
+- hiPSC maximal upstroke velocity, 2%, the paper's own stated accuracy at this time step. The
+  measurement comes out at 1.6%, and the gap is understood: the reference post-processes a
+  trace it writes before each step's spatial solve, so its estimate and this one bracket the
   true value and converge to it from opposite sides as the step shrinks. Sampling the potential
   mid-step to reproduce that would mean publishing an intermediate of the operator splitting as
   API, which is not worth 1.6%.
-- **Beta conduction velocity, 0.5%** -- tighter than the cardiac one, because the floors are.
-  The measurement comes out at 0.08%. The beta transit takes 21,000 steps rather than 500, so
-  the step quantization that costs 0.37% above costs 0.005% here, and what is left is the
-  table's three significant figures, 0.2% at 0.0243.
-- **Beta maximal upstroke velocity, 2%.** The measurement comes out at 0.89% and converges to
-  about 1.0% as the step shrinks. The pre-solve and post-solve estimators differ by only 0.06%
-  on this setup, because the beta upstroke is slow, so unlike the cardiac case that gap is not
-  what the tolerance is covering; it covers a residual that shrinking the step does not remove.
+- Beta conduction velocity, 0.5%, tighter than the cardiac one because the floors are. The
+  measurement comes out at 0.08%. The beta transit takes 21,000 steps rather than 500, so the
+  step quantization that costs 0.37% above costs 0.005% here, and what is left is the table's
+  three significant figures, 0.2% at 0.0243.
+- Beta maximal upstroke velocity, 2%. The measurement comes out at 0.89% and converges to about
+  1.0% as the step shrinks. The pre-solve and post-solve estimators differ by only 0.06% on this
+  setup, because the beta upstroke is slow, so unlike the cardiac case that gap is not what the
+  tolerance is covering. It covers a residual that shrinking the step does not remove.
 
 Only `alpha=1` is used for the cardiac sheet, because that is what the table was computed at;
 the rest of the suite prefers `alpha=1.5`, where a sheet cannot confuse its two axes. A beta
@@ -293,8 +293,8 @@ def test_sknm_is_knm_where_the_conductance_ratio_is_exact():
 
     Eliminating the extracellular potential from the KNM block system leaves the intracellular
     coupling reduced by lam/(1 + lam), which is what SKNM solves. Where Ge = lam * Gi holds
-    connection by connection, that elimination is exact and the two must agree to the solver's
-    tolerance at every step, not merely close.
+    connection by connection, that elimination is exact, so the two must agree to the solver's
+    tolerance at every step rather than just come close.
     """
     network = uniform_chain()
 

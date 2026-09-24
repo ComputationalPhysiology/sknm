@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Figure 8 — continuum conduction velocity against gap junction variation
+# # Figure 8: continuum conduction velocity against gap junction variation
 #
 # The counterpart of Figure 4, and the sharpest test of the monodomain assumption. Spreading
 # the gap junction conductances makes the intracellular conductivity vary from cell to cell
@@ -9,10 +9,10 @@
 # part company further as the spread widens.
 #
 # This is the first of these figures where the conductivity is genuinely heterogeneous. At
-# $\gamma = 0$ the reference's own variation cancels exactly — a draw $a$ scales the
-# resistance by $1/(a + (1 - a))$ — so Figures 6 and 7 are drawn on a uniform field and this
-# one is not. It is what the element size is chosen for: every element lies inside one cell,
-# so the field is represented exactly rather than averaged across a boundary.
+# $\gamma = 0$ the reference's own variation cancels exactly, since a draw $a$ scales the
+# resistance by $1/(a + (1 - a))$, so Figures 6 and 7 are drawn on a uniform field and this one
+# is not. That is what the element size is chosen for: every element lies inside one cell, so
+# the field is represented exactly rather than averaged across a boundary.
 #
 # This page needs `dolfinx` and `fenicsx-beat`, which `sknm` does not depend on. It is also
 # the script `examples/fig08_continuum_gap_junction_variation.py`, and runs either way. Set

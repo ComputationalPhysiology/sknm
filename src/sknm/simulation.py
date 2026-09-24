@@ -1,11 +1,12 @@
 """The time stepper: a network, a membrane model and a variant, advanced through time.
 
-`Simulation` owns everything that changes as a run proceeds -- the state array, the parameter
-array and the clock -- and holds the two things that do not: the assembled `Operator` and the
-factorization of its matrix. The network is frozen and the conductances do not vary with time,
-so the matrix is factorized once, on the first step, and reused for the rest of the run.
+`Simulation` owns everything that changes as a run proceeds: the state array, the parameter
+array and the clock. It also holds the two things that do not change, the assembled `Operator`
+and the factorization of its matrix. The network is frozen and the conductances do not vary
+with time, so the matrix is factorized once, on the first step, and reused for the rest of the
+run.
 
-One step is Godunov splitting, which is what the reference implementation does and what the
+One step is Godunov splitting, as in the reference implementation, and it is the scheme the
 paper's convergence study justifies its time step against:
 
 1. advance every cell's membrane model by `dt`, independently of its neighbours;
@@ -15,15 +16,14 @@ There is no separate array for the membrane potential. It is a row of the state 
 spatial solve writes back into the states that the next membrane step reads, and the two cannot
 fall out of step with one another.
 
-A stimulus is not a concept here. The paper's protocols are a membrane parameter raised on some
-cells -- an injected current for the cardiac model, a halved conductance for the beta cell --
-with all of the timing inside the membrane model's own equations, so `set_parameter` is the
-whole mechanism and the numerical core never learns that a stimulus exists.
+There is no stimulus object. Each of the paper's protocols is a membrane parameter raised on
+some cells, an injected current for the cardiac model and a halved conductance for the beta
+cell, with all of the timing inside the membrane model's own equations. So `set_parameter` is
+the whole mechanism, and the numerical core never learns that a stimulus exists.
 
-**Times carry units**: ``dt=0.02 * ms``, ``run(50 * ms, record_every=1 * ms)``. They are
-converted once, here, and everything downstream is in milliseconds. What comes back out --
-`Simulation.t`, `Result.t` -- is a bare magnitude in milliseconds, as everywhere else in the
-package.
+Times carry units: ``dt=0.02 * ms``, ``run(50 * ms, record_every=1 * ms)``. They are converted
+once, here, and everything downstream is in milliseconds. `Simulation.t` and `Result.t` come
+back as bare magnitudes in milliseconds, as everywhere else in the package.
 """
 
 from __future__ import annotations
@@ -56,10 +56,9 @@ EXTRACELLULAR_POTENTIAL = "u_e"
 _EXTRACELLULAR_ROW = -1
 
 #: Largest relative disagreement between a model's declared capacitance and the one a cell's
-#: membrane area implies that is taken for the same number rather than a mismatch. Wide enough
-#: for the rounding in a printed value, far too narrow for the factor-of-ten mistakes the check
-#: exists to catch -- including the two conventions being confused, which is a factor of the
-#: membrane area, around 1e5.
+#: membrane area implies that still counts as the same number. Wide enough for the rounding in
+#: a printed value, far too narrow for the factor-of-ten mistakes the check exists to catch.
+#: Confusing the two capacitance conventions is a factor of the membrane area, around 1e5.
 CAPACITANCE_TOLERANCE = 1e-9
 
 
@@ -340,8 +339,8 @@ class Simulation:
     def parameters(self) -> npt.NDArray[np.float64]:
         """numpy.ndarray: Membrane parameters, shape ``(num_parameters, n_cells)``.
 
-        Writable. `set_parameter` is the same thing by name; this is the escape hatch for
-        anything it does not express.
+        Writable. `set_parameter` does the same thing by name; this is for whatever it does
+        not express.
         """
         return self._parameters
 
@@ -511,8 +510,8 @@ class Simulation:
         """Resolve each recording name to a row of the state array, or to the extracellular one.
 
         `Variant.SKNM` has no extracellular potential to give, so asking for one records
-        nothing rather than raising: it is a property of the model that was chosen, not a
-        mistake in the request, and the same run makes sense under the other two variants.
+        nothing instead of raising. The same request makes sense under the other two variants,
+        so it follows from the model chosen and is not a mistake to report.
         """
         rows: dict[str, int] = {}
         for name in record:

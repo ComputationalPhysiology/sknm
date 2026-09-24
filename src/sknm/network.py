@@ -5,14 +5,14 @@ fraction; connections carry a length, a cross-sectional area and a gap junction 
 Everything else is derived from those, including the two Laplacians the models are built on and
 the ratio `lam` by which SKNM summarizes the extracellular space.
 
-Both conductances of a connection mix the volume fractions of *both* of its endpoint cells, so
-neither can be computed by a `Connection` on its own; that arithmetic lives here, on the
+Both conductances of a connection mix the volume fractions of its two endpoint cells, so
+neither can be computed by a `Connection` on its own. That arithmetic lives here, on the
 network, and the connection carries only what is local to it.
 
-**Every dimensional argument must carry a unit**: ``16 * um``, never ``16``. See `sknm.units`.
+Every dimensional argument must carry a unit: ``16 * um``, never ``16``. See `sknm.units`.
 Units are stripped once, in the constructors, and the stored attributes are bare floats in the
-base unit for their dimension -- centimetres, square centimetres, millisiemens. Nothing past
-this module carries a unit.
+base unit for their dimension: centimetres, square centimetres, millisiemens. Nothing past this
+module carries a unit.
 
 Networks are immutable. `frozen=True` stops attributes being rebound but not arrays being
 written into, so every array is stamped read-only on construction and the arrays passed in are
@@ -36,8 +36,8 @@ from scipy.sparse.csgraph import connected_components
 from sknm import units
 
 #: Largest cell dimension the constructors accept. Cells are tens of micrometres across, so a
-#: dimension approaching a millimetre is a mistake -- now necessarily a stated one, since the
-#: unit has to be written out, but a network built on it still describes nothing biological.
+#: dimension approaching a millimetre is a mistake. Writing the unit out catches the ones that
+#: come from a wrong unit; this catches the rest.
 MAX_CELL_SIZE = 1.0 * units.mm
 
 _MAX_LENGTH: float = float(units.in_base_units(MAX_CELL_SIZE, "length", name="MAX_CELL_SIZE"))
@@ -257,7 +257,7 @@ class CellNetwork:
                 )
 
         for name in ("membrane_area", "delta_e", "length", "cross_section", "Gg"):
-            # Checked up front because an infinity survives the comparisons below -- an
+            # Checked up front because an infinity survives the comparisons below: an
             # infinite Gg passes "non-negative" and then turns Gi into a silent nan.
             if not np.isfinite(getattr(self, name)).all():
                 raise ValueError(f"{name} must be finite")
@@ -287,8 +287,8 @@ class CellNetwork:
             if not np.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be positive and finite, got {value}")
 
-        # Units make the *unit* impossible to get wrong; they do not make the *number* right.
-        # A cell really stated as a centimetre across is still not a cell.
+        # Units catch a wrong unit but not a wrong magnitude, and a cell stated as a
+        # centimetre across is still not a cell.
         if (self.length > _MAX_LENGTH).any():
             raise ValueError(
                 f"implausible connection length {self.length.max():g} cm, above the "
@@ -355,7 +355,7 @@ class CellNetwork:
 
         Row `c` of a connection from cell `j` to cell `k` holds ``+1`` in column `j` and
         ``-1`` in column `k`. Both Laplacians are ``A.T @ diag(G) @ A`` over this one matrix
-        and differ only in `G`, which is what makes them share a sparsity pattern.
+        and differ only in `G`, so they share a sparsity pattern.
         """
         rows = np.repeat(np.arange(self.n_connections, dtype=np.int64), 2)
         columns = self.connections.reshape(-1)
@@ -430,8 +430,8 @@ class CellNetwork:
         """How badly ``Ge = lam * Gi`` fails across the network, paper eq. (29).
 
         The weighted sum of squares that `lam` minimizes. SKNM is derived by assuming a single
-        ratio relates the extracellular and intracellular conductance of *every* connection;
-        this is how far the network is from letting it. Zero means the assumption holds
+        ratio relates the extracellular and intracellular conductance of every connection,
+        and this is how far the network is from letting it. Zero means the assumption holds
         exactly, and SKNM then reproduces KNM to solver tolerance. It grows as gap junction
         conductances are spread or as cells are made anisotropic, which is where the two
         models start to disagree.
@@ -492,8 +492,8 @@ class CellNetwork:
     def _as_quantities(self) -> dict[str, Any]:
         """Re-attach base units to the stored magnitudes, for rebuilding through `__init__`.
 
-        Keeps a rebuilt network on the same unit-checking path as a fresh one, rather than
-        letting it in through a side door that skips the checks.
+        A rebuilt network then goes through the same unit checks as a fresh one, instead of
+        skipping them on the way in.
         """
         rebuilt: dict[str, Any] = {}
         for field in fields(self):
@@ -507,10 +507,8 @@ class CellNetwork:
     def with_conductances(self, Gg: Any) -> CellNetwork:
         """Build a copy of this network with different gap junction conductances.
 
-        The replacement for mutating the conductances in place, which the cached derived
-        quantities rule out. A sweep over gap junction variation is then a sequence of
-        networks built from one conductance array each, rather than one network reconfigured
-        between runs.
+        The cached derived quantities rule out changing the conductances in place, so a sweep
+        over gap junction variation is a sequence of networks, one per conductance array.
 
         Everything else carries over unchanged, `lam_override` included; drop the override by
         building the network afresh.
@@ -578,8 +576,8 @@ def from_edges(
 ) -> CellNetwork:
     """Build a network from an explicit list of connections.
 
-    The general constructor: any topology, per-cell geometry, per-connection conductance. The
-    paper's own geometries are not built here.
+    The general constructor: any topology, with geometry per cell and conductance per
+    connection. The paper's own geometries come from `sknm.presets` instead.
 
     Parameters
     ----------
@@ -631,7 +629,7 @@ def from_edges(
     >>> network.n_cells, network.n_connections
     (2, 1)
 
-    A bare number is refused rather than assumed to be in the base unit:
+    A bare number is refused instead of being read as a value in the base unit:
 
     >>> from_edges([], n_cells=1, membrane_area=1.8e-5, delta_e=0.2,
     ...            sigma_i=4.0 * mS / cm, sigma_e=20.0 * mS / cm)
@@ -829,7 +827,7 @@ def sheet(
     >>> round(network.lam, 2)
     39.65
 
-    Units are checked, not assumed. A time where a length belongs is refused:
+    A time where a length belongs is refused:
 
     >>> from sknm.units import ms
     >>> sheet(2, 2, lx=16 * ms, ly=16 * um, lz=19.2 * um, delta_e=0.2,

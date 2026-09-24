@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Figure 6 — a travelling wave, solved as bidomain and as monodomain
+# # Figure 6: a travelling wave, solved as bidomain and as monodomain
 #
 # The continuum counterpart of Figure 2, and the same claim made about a different pair of
 # models: snapshots of the membrane potential at three points in time, one row per model,
@@ -96,8 +96,7 @@ plt.show()
 # %% [markdown]
 # ## How far apart the rows are
 #
-# The last column is the collapse of the bidomain model onto the monodomain one, measured
-# rather than asserted.
+# The last column measures how far the bidomain model falls onto the monodomain one.
 
 # %%
 difference = np.abs(recorded["bidomain"] - recorded["monodomain"])

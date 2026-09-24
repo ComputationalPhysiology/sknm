@@ -1,12 +1,12 @@
 # %% [markdown]
-# # Figure 11 — the beta cell wave under the harshest conditions the paper tries
+# # Figure 11: the beta cell wave under the harshest conditions the paper tries
 #
 # Figure 10 is the case where SKNM's assumption holds exactly. This is the case where it holds
 # least well: the gap junction conductances are spread as widely as the paper spreads them
 # ($\gamma = 1$) so that no single ratio can relate the extracellular and intracellular
 # conductance of every connection, and the extracellular space is squeezed to 2%.
 #
-# For hiPSC-CMs that combination is where KNM and SKNM visibly part company — Figure 4's 2%
+# For hiPSC-CMs that combination is where KNM and SKNM visibly part company: Figure 4's 2%
 # panel has them 6% apart at this $\gamma$. For beta cells they stay together, because the gap
 # junction resistance is so large that the conductance ratio is enormous whatever the
 # extracellular volume is.
@@ -72,8 +72,8 @@ plt.show()
 # %% [markdown]
 # ## How far apart the rows are, and why
 #
-# Printed in the same shape as Figure 10's, so the comparison between the easiest case and the
-# hardest one is a number rather than an impression.
+# Printed in the same shape as Figure 10's, so the easiest case and the hardest one can be
+# compared number for number.
 
 # %%
 common.snapshot_report(recorded, [f"{time / 1000:g}" for time in SNAPSHOT_TIMES], VARIANTS, "t (s)")

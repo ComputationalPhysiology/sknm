@@ -1,10 +1,10 @@
 """Test configuration.
 
 `examples/` and `tools/` are directories of scripts rather than packages, so neither is
-importable by default. The bidomain and monodomain machinery lives in the first -- it is
-example code, not part of the library, and it requires `dolfinx`, which `sknm` deliberately
-does not depend on -- and the reference page generator lives in the second. Both still need
-testing, so this puts them on the path.
+importable by default. The bidomain and monodomain machinery lives in the first, as example
+code rather than part of the library, because it requires `dolfinx`, which `sknm` deliberately
+does not depend on. The reference page generator lives in the second. Both still need testing,
+so this puts them on the path.
 """
 
 import sys

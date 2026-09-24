@@ -1,8 +1,8 @@
 """Compare the committed membrane code against the original gotran C++, elementwise.
 
-This validates **what ships**, not what gotranx currently emits: it imports
-`sknm.membrane.base_model_IM` rather than regenerating in memory, so a stale or hand-edited
-committed file is caught. Regenerate with `python3 tools/generate_membrane_models.py`.
+This checks the file that ships. It imports `sknm.membrane.base_model_IM` rather than
+regenerating in memory, so a stale or hand-edited committed file is caught. Regenerate with
+`python3 tools/generate_membrane_models.py`.
 
 Run directly for the full report, or via `pytest -m reference` for a pass/fail check.
 """

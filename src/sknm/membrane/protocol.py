@@ -1,10 +1,10 @@
 """The membrane seam: what a simulation requires of a membrane model.
 
-`MembraneModel` is a `Protocol`, so a class satisfies it structurally -- without importing
-anything from `sknm` -- and it is where the membrane potential's state name, the state layout
-and the model's capacitance are bound to the model they belong to.
+`MembraneModel` is a `Protocol`, so a class satisfies it structurally, with no import from
+`sknm`. It is where the membrane potential's state name, the state layout and the model's
+capacitance are bound to the model they belong to.
 
-The contract in one line: **advance `(v, s)` by `dt`**. A simulation never sees `I_ion`; under
+The whole contract is: advance ``(v, s)`` by `dt`. A simulation never sees `I_ion`; under
 operator splitting the membrane model and the spatial operator exchange only `v`.
 """
 
@@ -56,14 +56,14 @@ class MembraneModel(Protocol):
         """float or None: Absolute membrane capacitance of one cell, in uF.
 
         Absolute rather than specific, because that is what a voltage equation of the form
-        ``dv/dt = -I / Cm`` divides by. A network holds a *specific* capacitance and a membrane
+        ``dv/dt = -I / Cm`` divides by. A network holds a specific capacitance and a membrane
         area per cell, and the two conventions meet at ``Cm * membrane_area``; comparing them
         is `Simulation`'s job.
 
         `None` when the model's voltage equation assumes a capacitance that it does not expose
-        as a parameter -- ``dV/dt = -I_tot`` has one implicitly -- in which case a caller has
-        nothing to check. A mismatch shows up as a plausible wave travelling at the wrong speed
-        rather than as an obvious failure, which is why it is worth declaring where it can be.
+        as a parameter, as ``dV/dt = -I_tot`` does, leaving a caller nothing to check. A
+        mismatch shows up as a plausible wave travelling at the wrong speed and not as an
+        obvious failure, which is why it is worth declaring where it can be.
         """
         ...
 

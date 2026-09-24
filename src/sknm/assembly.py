@@ -19,17 +19,17 @@ With ``D = diag(Cm * Am / dt)`` the capacitive diagonal, the three systems are
 
 where ``L_i`` and ``L_i + L_e`` are the network's two Laplacians.
 
-These are symmetric positive definite, which is what lets a Cholesky-style factorization or a
-conjugate gradient solve be used on them. The reference implementation writes the same systems
-divided through by the membrane capacitance, which makes them nonsymmetric whenever the cells
-differ in area; multiplying that form's first block row by ``Cm * Am / dt`` recovers the form
-above, so the two describe the same model and the asymmetry is a spelling.
+These are symmetric positive definite, so a Cholesky-style factorization or a conjugate
+gradient solve applies to them. The reference implementation writes the same systems divided
+through by the membrane capacitance, which makes them nonsymmetric whenever the cells differ in
+area. Multiplying that form's first block row by ``Cm * Am / dt`` recovers the form
+above, so the difference is in how the equations are written and not in the model.
 
 KNM determines the extracellular potential only up to a constant per connected component, so
-one cell per component has its extracellular unknown removed. The row **and** the column are
+one cell per component has its extracellular unknown removed. Both the row and the column are
 deleted, which preserves the symmetry; stamping a unit row in its place, as the reference does,
-would not. Grounding is a gauge on the extracellular potential and cannot move the membrane
-potential.
+would not. Grounding fixes the gauge of the extracellular potential and cannot move the
+membrane potential.
 
 Nothing here carries a unit except `dt`, which is converted on the way in. Everything else
 comes off a `CellNetwork` as bare magnitudes in the package's base units.
@@ -78,8 +78,8 @@ class Operator:
 
     Built by `assemble`, not directly. A step consists of forming a right-hand side with
     `rhs`, solving the system, and reading the potentials back with `membrane_potential` and
-    `extracellular_potential` -- so that where the blocks are, and which extracellular unknowns
-    were removed by the grounding, is known here and nowhere else.
+    `extracellular_potential`. Where the blocks sit, and which extracellular unknowns the
+    grounding removed, is then known here and nowhere else.
 
     Attributes
     ----------
@@ -326,9 +326,9 @@ def _knm_blocks(
 def _ground(matrix: sp.csr_array, n_cells: int, grounded: npt.NDArray[np.int64]) -> sp.csr_array:
     """Delete the row and the column of each grounded extracellular unknown.
 
-    Deleting both is what keeps the matrix symmetric, and with it the positive definiteness
-    that the whole choice of solver rests on. Replacing the row by a unit row would impose the
-    same condition and destroy both.
+    Deleting both keeps the matrix symmetric, and so positive definite, as the solvers
+    assume. Replacing the row by a unit row would impose the same condition and lose
+    both properties.
     """
     removed = n_cells + grounded
     keep = np.setdiff1d(np.arange(matrix.shape[0], dtype=np.int64), removed)

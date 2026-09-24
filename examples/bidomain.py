@@ -2,19 +2,19 @@
 
 The paper's second half solves the same tissue with the two homogenized continuum models, on
 a mesh finer than a cell rather than on a network of cells. That is a genuinely different
-discretization -- the reference meshes a 16 um cell with 10 um elements -- so agreement
+discretization, since the reference meshes a 16 um cell with 10 um elements, so agreement
 between it and `sknm` is evidence about the models rather than a restatement of one scheme in
 the notation of another.
 
-**This module needs `dolfinx` and `fenicsx-beat`, which `sknm` does not depend on.** The
-package's runtime set is numpy, scipy and pint, and nothing here changes that: the scripts
-that import this one check `available()` and return with a message when the two are missing.
-Install them with, for example, a `dolfinx` container image plus ``pip install fenicsx-beat``.
+This module needs `dolfinx` and `fenicsx-beat`, which `sknm` does not depend on. The package's
+runtime set is numpy, scipy and pint, and nothing here changes that: the scripts that import
+this one check `available()` and return with a message when the two are missing. Install them
+with, for example, a `dolfinx` container image plus ``pip install fenicsx-beat``.
 
-What does *not* need either is the conductivity field itself, which is a per-cell quantity
-computed from the cell geometry and the gap junction resistances. It is plain numpy, it is
-what the conductance ratio and Figure 9's left panel are built from, and it lives above the
-import guard so that both can be had -- and tested -- without a mesh.
+The conductivity field itself needs neither. It is a per-cell quantity computed from the cell
+geometry and the gap junction resistances, in plain numpy, and it is what the conductance ratio
+and Figure 9's left panel are built from. It lives above the import guard, so both can be had,
+and tested, without a mesh.
 """
 
 from __future__ import annotations
@@ -110,10 +110,10 @@ CONDUCTION_COLUMNS = (9, 34)
 #: The longest ODE step taken, in ms. The membrane model is substepped whenever the time step
 #: is longer than this, and stepped once with the time step itself when it is shorter. The
 #: reference fixes this at 0.01 and computes the number of substeps as ``round(dt/dt_ode)``,
-#: which is **zero** at every time step below 0.005 -- the membrane model is then never
-#: advanced at all and the resting state overwrites the solve every step. Taking the smaller
-#: of the two, and at least one substep, agrees with the reference wherever its own arithmetic
-#: gives a positive count.
+#: which is zero at every time step below 0.005: the membrane model is then never advanced at
+#: all and the resting state overwrites the solve every step. Taking the smaller of the two,
+#: and at least one substep, agrees with the reference wherever its own arithmetic gives a
+#: positive count.
 MAX_ODE_STEP = 0.01
 
 #: How close to a boundary a node has to be to count as on it, as a fraction of the smaller
@@ -175,7 +175,7 @@ class BidomainSetup:
         -------
         tuple of float
             ``(lx, ly, lz)``. The first two are `sknm.presets.hipsc_cell_size`; the third is
-            the cardiac rule ``lz = (1 + delta_e) * ly``, which is what makes the cell's
+            the cardiac rule ``lz = (1 + delta_e) * ly``, under which the cell's
             extracellular sheath carry the volume fraction.
         """
         lx, ly = presets.hipsc_cell_size(self.alpha)
@@ -212,7 +212,7 @@ class BidomainSetup:
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """The two diagonal components of the intracellular conductivity, per cell, in mS/cm.
 
-        A cell's gap junction resistance is in series with its cytosol, which is what puts the
+        A cell's gap junction resistance is in series with its cytosol, which puts the
         resistance in the denominator: a cell that conducts perfectly well internally still
         passes current no faster than its junctions allow. The geometric factor is the one
         that makes the tensor anisotropic when the cell is.
@@ -294,8 +294,8 @@ class BidomainSetup:
 
         The value of ``lambda`` that minimizes `conductivity_misfit`, which is the paper's
         equation (32). Setting the derivative of the misfit to zero and solving gives a
-        quotient of two area-weighted sums, and the cell areas cancel out of it -- they do
-        not cancel out of the misfit itself.
+        quotient of two area-weighted sums, and the cell areas cancel out of it. They do not
+        cancel out of the misfit itself.
 
         Returns
         -------
@@ -375,12 +375,12 @@ def gap_junction_draws() -> npt.NDArray[np.float64]:
     Committed under `data/`, for the same reason the beta cell draws are: the published
     figures are drawn with these numbers and any other set moves the curves.
 
-    There are 1600 of them, one per **cell**, where the network model's 1560 are one per
-    **connection**. The two describe the same tissue and are not interchangeable.
+    There are 1600 of them, one per cell, where the network model's 1560 are one per
+    connection. The two describe the same tissue and are not interchangeable.
 
     Only the x file is committed. The reference loads a y file as well and then reads it
-    nowhere -- every one of its conductivity functions, the yy components included, indexes
-    the x draws -- so shipping the y file would suggest a second input that decides nothing.
+    nowhere, since every one of its conductivity functions indexes the x draws, the yy
+    components included. Shipping the y file would suggest a second input that decides nothing.
 
     Returns
     -------
@@ -393,7 +393,7 @@ def gap_junction_draws() -> npt.NDArray[np.float64]:
 def stimulus_weight(setup: BidomainSetup, points: npt.ArrayLike) -> npt.NDArray[np.float64]:
     """How much of the stimulus each of `points` receives: one inside the strip, zero outside.
 
-    A node **on** the strip's own edge gets a half, and that is the whole subtlety here.
+    A node sitting on the strip's own edge gets a half, and that is the whole subtlety here.
 
     The reference tests its strip with strict inequalities, which is unambiguous on its own
     unstructured mesh because no node lands exactly on the edge. On a mesh whose elements
@@ -402,11 +402,11 @@ def stimulus_weight(setup: BidomainSetup, points: npt.ArrayLike) -> npt.NDArray[
     has half of that share inside the strip. Counting it whole injects 17.6% more stimulus
     current than the strip holds at the size these figures are drawn at, which launches the
     wave 5.7 ms early and steepens the upstroke by 2.2%; dropping it takes out a whole row and
-    a whole column, which leaves too little to propagate at all -- measured on four such
-    meshes the sheet depolarized a little and nothing travelled.
+    a whole column, which leaves too little to propagate at all: on four such meshes the sheet
+    depolarized a little and nothing travelled.
 
     Weighting the edge by a half makes the stimulated membrane exactly the strip's own area on
-    any mesh, and on a mesh where no node lands on the edge -- the reference's own -- it
+    any mesh, and on a mesh where no node lands on the edge, such as the reference's own, it
     reduces to the reference's test.
 
     Parameters
@@ -443,10 +443,10 @@ def stimulus_weight(setup: BidomainSetup, points: npt.ArrayLike) -> npt.NDArray[
 def is_grounded(setup: BidomainSetup, points: npt.ArrayLike) -> npt.NDArray[np.bool_]:
     """Which of `points` lie on the corner the extracellular potential is grounded at.
 
-    An L of two segments one cell long meeting at the origin, which is what the reference's
-    mesh marks as its second physical line. The extracellular potential is otherwise
-    determined only up to a constant; grounding it at the same lower-left corner the network
-    model grounds at is what makes the two comparable.
+    An L of two segments one cell long meeting at the origin, which the reference's mesh marks
+    as its second physical line. The extracellular potential is otherwise determined only up to
+    a constant, and grounding it at the same lower-left corner the network model grounds at is
+    what makes the two comparable.
 
     Parameters
     ----------
@@ -611,9 +611,9 @@ def _ground_the_extracellular_potential(setup: BidomainSetup) -> Any:
 def build_model(setup: BidomainSetup, model: str, mesh: Any = None) -> Any:
     """Build one of the two continuum models over the sheet.
 
-    Fully implicit, which is what the reference does, and solved by a direct factorization:
-    reused across steps it costs less than the reference's preconditioned Krylov solver, and
-    it leaves the run bound by the membrane model rather than by the linear algebra.
+    Fully implicit, like the reference, and solved by a direct factorization: reused across
+    steps it costs less than the reference's preconditioned Krylov solver, and it leaves the run
+    bound by the membrane model rather than by the linear algebra.
 
     Both conductivities are handed over with the surface-to-volume ratio divided out, since
     `fenicsx-beat` supplies the time step and the capacitance itself.
@@ -655,8 +655,8 @@ def build_model(setup: BidomainSetup, model: str, mesh: Any = None) -> Any:
             time=time,
             mesh=mesh,
             M_i=intracellular_conductivity_field(setup, mesh),
-            # Isotropic and uniform, and the diagonal of the elliptic block is this plus
-            # `M_i` -- which is what the reference assembles there.
+            # Isotropic and uniform. The diagonal of the elliptic block is this plus `M_i`,
+            # which is what the reference assembles there.
             M_e=dolfinx.fem.Constant(mesh, np.diag([extracellular, extracellular])),
             C_m=CM,
             params=parameters,
@@ -715,11 +715,11 @@ def membrane_substeps(dt: float) -> tuple[float, int]:
     """The membrane model's own step, and how many of them make up one step of the PDE.
 
     The reference fixes its ODE step at 0.01 ms and takes ``round(dt/dt_ode)`` of them, which
-    is **zero** for every time step below 0.005: the membrane model is then never advanced at
-    all, its clock never moves, and the resting state overwrites the spatial solve on every
-    step. Taking the ODE step as the smaller of the two is what prevents that, and it also
-    keeps the two clocks together, since the substeps then add up to exactly one time step --
-    which the reference's arithmetic does only when the time step is a multiple of 0.01.
+    is zero for every time step below 0.005: the membrane model is then never advanced at all,
+    its clock never moves, and the resting state overwrites the spatial solve on every step.
+    Taking the ODE step as the smaller of the two prevents that, and it also keeps the two
+    clocks together, since the substeps then add up to exactly one time step. The reference's
+    arithmetic does that only when the time step is a multiple of 0.01.
 
     Parameters
     ----------
@@ -772,8 +772,8 @@ def _membrane_parameters(setup: BidomainSetup, model: Any, space: Any) -> Any:
     """The membrane model's parameters, with the stimulus written into the strip.
 
     The stimulus is the cell model's own amplitude parameter rather than a source term in the
-    equation, which is what the reference does and what `sknm` does. That makes the comparison
-    between them one of models rather than one of stimulus protocols.
+    equation, as both the reference and `sknm` do. That makes the comparison between them one
+    of models rather than one of stimulus protocols.
     """
     coordinates = space.tabulate_dof_coordinates()
     parameters = model.initial_parameters(len(coordinates))

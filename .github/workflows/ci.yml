@@ -61,8 +61,8 @@ jobs:
       - run: python3 -m pytest tests/test_bidomain.py -v
 
   # The documentation site, which is also how the network and beta example scripts are
-  # exercised: each is converted to a notebook and executed, so a script that stopped running
-  # -- or stopped drawing anything -- fails a pull request.
+  # exercised: each is converted to a notebook and executed, so a script that stopped running,
+  # or stopped drawing anything, fails a pull request.
   #
   # The four continuum pages are not executed here. They need dolfinx and sweep for hours,
   # which no pull request can carry; they are rendered as markdown from the same scripts and
@@ -103,7 +103,7 @@ jobs:
 
       # MyST reads only `.md` and `.ipynb`; a percent-format `.py` in the project is ignored in
       # silence. `--set-kernel` matters too: without a kernelspec MyST refuses to execute, and
-      # under `--strict` that is an error rather than a warning -- which is what keeps the
+      # under `--strict` that is an error rather than a warning, which is what keeps the
       # continuum pages honest, since they are converted to markdown and carry no kernel.
       # `md:markdown` rather than `md`: the bare name resolves to Pandoc's markdown, which
       # needs pandoc installed and fails without it.

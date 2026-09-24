@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Figure 3 — conduction velocity against cell shape
+# # Figure 3: conduction velocity against cell shape
 #
 # Elongating the cells while holding their volume near 4 pL breaks the assumption SKNM rests
 # on, because an x-direction connection and a y-direction connection no longer share a
@@ -60,7 +60,7 @@ for delta_e in common.EXTRACELLULAR_FRACTIONS:
 # ## The figure
 #
 # One panel per extracellular volume fraction, largest first. The two models are drawn in
-# the paper's own line styles — KNM solid, SKNM dotted — so the panels can be read against
+# the paper's own line styles, KNM solid and SKNM dotted, so the panels can be read against
 # it directly.
 
 # %%

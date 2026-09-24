@@ -197,8 +197,8 @@ def test_an_odd_length_sweep_is_not_given_its_last_point_twice():
 SMALL = dict(nx=3, ny=3, t_end=10.0)
 
 #: `snapshot_figure` is the only thing in this module that draws, and matplotlib arrives with
-#: the `examples` extra rather than `test`. Everything else here -- the sweeps, the cache keys
-#: and the snapshot arithmetic -- is checked on a machine without it.
+#: the `examples` extra rather than `test`. Everything else here, the sweeps, the cache keys and
+#: the snapshot arithmetic, is checked on a machine without it.
 needs_matplotlib = pytest.mark.skipif(
     importlib.util.find_spec("matplotlib") is None,
     reason="matplotlib is an examples extra",
@@ -416,8 +416,8 @@ def test_an_interrupted_sweep_resumes_from_what_it_finished(tmp_path):
 
     The labels are measured out of alphabetical order deliberately. They are stored as one
     array and the values as another, so anything that reorders one of them and not the other
-    hands back the right number under the wrong parameters -- which looks like a figure, not
-    like a failure.
+    hands back the right number under the wrong parameters, which looks like a figure rather
+    than like a failure.
     """
     measured = {"gamma=1.0": 1.0, "beta=0.0": 2.0, "alpha=0.5": 3.0}
     cache = common.ResultCache("sweep", directory=tmp_path)
@@ -432,8 +432,8 @@ def test_an_interrupted_sweep_resumes_from_what_it_finished(tmp_path):
 
 
 def test_a_disabled_cache_writes_nothing(tmp_path):
-    """It still holds what this run measured -- a value this code just produced cannot be
-    stale -- but it leaves nothing behind for the next run to find."""
+    """It still holds what this run measured, since a value this code just produced cannot be
+    stale, but it leaves nothing behind for the next run to find."""
     cache = common.ResultCache("sweep", enabled=False, directory=tmp_path)
     cache.compute("a", lambda: 1.0)
     assert not list(tmp_path.iterdir())
@@ -449,9 +449,9 @@ def test_a_disabled_cache_ignores_what_is_already_stored(tmp_path):
 def test_results_written_for_other_invariants_are_discarded(tmp_path):
     """The cache format and the library version are not in a label, so they discard the file.
 
-    The run length and the threshold used to be here too. They are fields of a setup now, so
-    they invalidate a single label rather than the whole file -- which they have to be, since
-    the cardiac and beta scripts do not share either of them.
+    The run length and the threshold are fields of a setup instead, so they invalidate a single
+    label rather than the whole file. They have to be, since the cardiac and beta scripts do not
+    share either of them.
     """
     cache = common.ResultCache("sweep", directory=tmp_path)
     cache.compute("a", lambda: 1.0)
@@ -692,7 +692,7 @@ def test_beta_setups_differing_in_any_one_field_get_different_labels():
 
 
 def test_the_two_setups_do_not_share_a_cache_key():
-    """They carry different fields, so a label cannot mean both -- but check it, because a
+    """They carry different fields, so a label cannot mean both. Checked anyway, because a
     collision would serve a cardiac velocity under a beta label without any other symptom."""
     assert common.Setup().label() != common.BetaSetup().label()
 

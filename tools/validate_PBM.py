@@ -1,11 +1,11 @@
 """Compare the committed beta cell membrane code against the original gotran C++, elementwise.
 
-This validates **what ships**, not what gotranx currently emits: it imports `sknm.membrane.PBM`
-rather than regenerating in memory, so a stale or hand-edited committed file is caught.
-Regenerate with `python3 tools/generate_membrane_models.py`.
+This checks the file that ships. It imports `sknm.membrane.PBM` rather than regenerating in
+memory, so a stale or hand-edited committed file is caught. Regenerate with
+`python3 tools/generate_membrane_models.py`.
 
-The model is short enough to read, which is exactly why it is checked instead: a transcription
-that looks right and is wrong by one sign produces a plausible burst at the wrong frequency.
+The model is short enough to read through, but reading it is not enough: a transcription that
+looks right and is wrong by one sign produces a plausible burst at the wrong frequency.
 
 Run directly for the full report, or via `pytest -m reference` for a pass/fail check.
 """
@@ -97,8 +97,8 @@ for k in range(NCASE):
     # values have to be exercised.
     if k % 2:
         p[c_params.index("gkatpbar")] = 0.5 * p0["gkatpbar"]
-    # The model is autonomous -- t appears nowhere in the right hand side -- but the signature
-    # takes it, so pass a spread of values rather than only zero.
+    # The model is autonomous, with t appearing nowhere in the right hand side, but the
+    # signature takes it, so pass a spread of values rather than only zero.
     cases.append((s, p, float(rng.uniform(0.0, 1000.0))))
 
 # --- run the C --------------------------------------------------------------
@@ -131,13 +131,13 @@ for k, (s, p, t) in enumerate(cases):
     py_res[k] = v[py_s]  # back to C order
 
 # --- compare ----------------------------------------------------------------
-# Scaled by each derivative's own range rather than by its value at the case, which is what
-# the hiPSC validator can afford to do. `dcer/dt` is the difference of two ER fluxes that
+# Scaled by each derivative's own range rather than by its value at the case, as the hiPSC
+# validator can afford to do. `dcer/dt` is the difference of two ER fluxes that
 # very nearly cancel, so individual values pass through zero: at one case it is -2.5e-08 from
-# terms of order 1e-2, where a difference of 3e-19 -- two units in the last place of a double
-# -- reads as a relative error of 1e-11. Dividing by the state's range measures the agreement
-# that is actually there, and still catches a real transcription error, which moves a
-# derivative by a sizeable fraction of its own range rather than by an ulp.
+# terms of order 1e-2, where a difference of 3e-19, two units in the last place of a double,
+# reads as a relative error of 1e-11. Dividing by the state's range measures the agreement that
+# is actually there, and still catches a real transcription error, which moves a derivative by
+# a sizeable fraction of its own range rather than by an ulp.
 difference = np.abs(c_res - py_res)
 scale = np.abs(c_res).max(axis=0)
 scaled = difference / scale

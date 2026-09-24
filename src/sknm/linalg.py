@@ -1,9 +1,9 @@
 """Solvers for the assembled system, behind one seam: matrix in, solve function out.
 
 A simulation factorizes its operator once and then solves against the same matrix at every
-step, because the conductances do not change with time. That two-phase shape -- an expensive
-preparation followed by many cheap solves -- is what `factorize` expresses, and it is the only
-thing a solver has to provide:
+step, because the conductances do not change with time. `factorize` expresses that two-phase
+shape, one expensive preparation followed by many cheap solves, and it is the only thing a
+solver has to provide:
 
 ```python
 solve = DirectSolver().factorize(operator.matrix)
@@ -11,9 +11,9 @@ x = solve(operator.rhs(v_prev))
 ```
 
 `DirectSolver` is the default. All three systems are symmetric positive definite, so a sparse
-LU has no tolerance to tune and returns the same answer every run; the iterative solvers save
-at most a small fraction of a step and cost a convergence criterion, so they are the escape
-hatch for networks whose factorization does not fit in memory rather than the fast path.
+LU has no tolerance to tune and returns the same answer every run. The iterative solvers save
+at most a small fraction of a step and cost a convergence criterion, so they earn their place
+only on networks whose factorization does not fit in memory.
 
 Solvers are objects rather than a string and an options dictionary, so that `maxiter` cannot
 appear to mean something for a direct solve and so that a type checker can see the fields. The
@@ -21,10 +21,10 @@ string shorthand ``solver="cg"`` is accepted wherever one is taken, and names th
 zero-argument object.
 
 Preconditioners are available and default to none. On the systems this package assembles,
-Jacobi -- the reference implementation's own choice -- measurably helps neither variant, and an
-incomplete LU is a net loss on the simplified system and does not finish on the full one. The
-default `maxiter` of 1000 replaces scipy's ``10 * n``, which on a large network amounts to
-never giving up.
+Jacobi, which is the reference implementation's own choice, measurably helps neither variant,
+and an incomplete LU is a net loss on the simplified system and does not finish on the full one.
+The default `maxiter` of 1000 replaces scipy's ``10 * n``, which on a large network never
+stops.
 """
 
 from __future__ import annotations
@@ -85,8 +85,8 @@ class DirectSolver:
     """Sparse LU factorization, computed once and reused. The default.
 
     Exact to roundoff and deterministic, with no tolerance to choose. The factorization is
-    denser than the matrix, so on a very large network it is the memory rather than the time
-    that eventually makes an iterative solver the better choice.
+    denser than the matrix, so on a very large network memory is what eventually forces an
+    iterative solver, well before the time does.
 
     Parameters
     ----------
@@ -117,7 +117,7 @@ class DirectSolver:
 
 @dataclass(frozen=True)
 class CGSolver:
-    """Conjugate gradients, which the systems' positive definiteness makes applicable.
+    """Conjugate gradients, applicable because the assembled systems are positive definite.
 
     Parameters
     ----------
@@ -168,9 +168,9 @@ class CGSolver:
 class BiCGSTABSolver:
     """Stabilized biconjugate gradients, the reference implementation's own choice.
 
-    Applicable to a nonsymmetric system, which none of these are, so it converges more slowly
-    than `CGSolver` here for the same answer. Kept because it is what the reference uses and so
-    makes a direct comparison possible.
+    It handles nonsymmetric systems, which none of these are, so here it converges more slowly
+    than `CGSolver` for the same answer. Kept so that a run can be compared against the
+    reference directly.
 
     Parameters
     ----------
@@ -302,7 +302,7 @@ def _failure(
     solution: npt.NDArray[np.float64],
     info: int,
 ) -> str:
-    """Say how far the solve got, which is what decides whether to relax it or abandon it."""
+    """Say how far the solve got, so a caller can decide whether to relax it or abandon it."""
     scale = float(np.linalg.norm(rhs))
     residual = float(np.linalg.norm(matrix @ solution - rhs))
     reached = residual / scale if scale > 0.0 else residual

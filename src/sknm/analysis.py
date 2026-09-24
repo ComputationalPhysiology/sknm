@@ -1,11 +1,11 @@
 """Measuring a travelling wave: when each cell activated, and how fast it rose.
 
-The two numbers the paper reports for a network of cells -- the conduction velocity and the
-maximal upstroke velocity -- are both read off the membrane potential at *every* time step.
+The two numbers the paper reports for a network of cells, the conduction velocity and the
+maximal upstroke velocity, are both read off the membrane potential at every time step.
 Sampling a `Result` cannot supply them: a trace recorded every millisecond resolves neither a
-threshold crossing to better than a millisecond nor an upstroke that lasts about one. So they
-are gathered by a callback instead, `ActivationRecorder`, which `Simulation.run` calls after
-each step:
+threshold crossing to better than a millisecond nor an upstroke that lasts about one. They are
+gathered by a callback instead, `ActivationRecorder`, which `Simulation.run` calls after each
+step:
 
 ```python
 path = presets.hipsc_conduction_path(40, 40)
@@ -18,8 +18,8 @@ The recorder also ends the run as soon as the wave has arrived, which is most of
 conduction velocity is known long before the 50 ms a full action potential takes.
 
 Its arrays are bare magnitudes in the package's base units, like `Result.t` and `Result.v`.
-`conduction_velocity` is the exception that returns a quantity: it is a single number handed
-back to a reader, who may not be thinking in centimetres per second.
+`conduction_velocity` is the exception and returns a quantity, because it is a single number
+handed back to a reader who may not be thinking in centimetres per second.
 """
 
 from __future__ import annotations
@@ -42,8 +42,9 @@ class ConductionPath:
 
     The three travel together because they are only meaningful together. A cell index pairs
     with a distance that depends on the cell size, so a path built for one anisotropy factor
-    and used with a network built for another gives a conduction velocity wrong by as much as a
-    factor of two, with nothing else to show for it. `sknm.presets` hands out all three at once.
+    and used with a network built for another gives a conduction velocity that can be out by a
+    factor of two, with nothing in the result to show for it. `sknm.presets` hands out all
+    three at once.
 
     Parameters
     ----------
@@ -100,11 +101,11 @@ class ActivationRecorder:
 
     A `Simulation.run` callback. It is built from the simulation it will watch rather than from
     a cell count, because the centred difference of the supplementary's equation (S8) needs the
-    membrane potential from *before* the first step, and only the simulation has it.
+    membrane potential from before the first step, and only the simulation has it.
 
-    Every cell is watched. The arrays are one float per cell, and the two quantities are read
-    off different cells anyway -- the reference measures its velocity between two cells far
-    apart and its upstroke at the centre of the network.
+    Every cell is watched. The arrays are one float per cell, and the two quantities come from
+    different cells anyway: the reference measures its velocity between two cells far apart and
+    its upstroke at the centre of the network.
 
     Parameters
     ----------
@@ -112,12 +113,11 @@ class ActivationRecorder:
         The simulation to watch. Its current membrane potential is taken as the starting point,
         so build the recorder after setting the initial condition.
     threshold : pint.Quantity
-        Membrane potential at which a cell counts as activated, as a potential. Required, and
-        deliberately without a default: the value belongs to the membrane model rather than to
-        the measurement, and one model's is another's catastrophe. `sknm.presets` carries
-        `HIPSC_THRESHOLD` and `BETA_THRESHOLD`, which are -20 mV and -50 mV -- and a beta cell
-        action potential peaks at about -19.5 mV, so the cardiac threshold applied to it leaves
-        every measurement cell unactivated.
+        Membrane potential at which a cell counts as activated, as a potential. Required, with
+        no default, because the value belongs to the membrane model and not to the measurement.
+        `sknm.presets` carries `HIPSC_THRESHOLD` and `BETA_THRESHOLD`, which are -20 mV and
+        -50 mV. A beta cell action potential peaks at about -19.5 mV, so the cardiac threshold
+        applied to one leaves every measurement cell unactivated.
     stop_when_activated : int, sequence of int or None, optional
         Cells whose activation ends the run. By default `None`, meaning run to `t_end`. Naming
         the far end of a conduction path stops the run as soon as the wave has arrived, which
@@ -251,8 +251,8 @@ def conduction_velocity(activation: ActivationRecorder, path: ConductionPath) ->
     Returns
     -------
     pint.Quantity
-        The velocity, in cm/s. A quantity rather than a bare number: it is a result to be read
-        rather than state to be stepped, and the unit it is reported in varies by author.
+        The velocity, in cm/s. A quantity, because this is a result to be read and not state
+        to be stepped, and because authors report it in different units.
 
     Raises
     ------
