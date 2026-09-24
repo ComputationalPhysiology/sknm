@@ -46,15 +46,19 @@ examples = ["matplotlib"]
 # Only needed to regenerate the membrane models; the generated Python is committed.
 # The committed code was produced with gotranx main@70171e8.
 codegen = ["gotranx"]
-dev = ["sknm[test,examples]", "ruff", "mypy", "scipy-stubs", "pre-commit"]
-all = ["sknm[test,examples,codegen,dev]"]
+# `griffe` reads the source for the API reference without importing it, so generating the
+# reference needs none of the package's runtime dependencies. >=2 for `Module.exports`, which
+# is what honours a module's `__all__`.
+docs = ["sknm[examples]", "griffe>=2", "mystmd", "jupytext", "ipykernel", "jupyter-server"]
+dev = ["sknm[test,examples,docs]", "ruff", "mypy", "scipy-stubs", "pre-commit"]
+all = ["sknm[test,examples,codegen,docs,dev]"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sknm"]
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests", "examples"]
+src = ["src", "tests", "examples", "tools"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "NPY", "RUF"]

@@ -1,15 +1,19 @@
 """Test configuration.
 
-`examples/` is a directory of scripts rather than a package, so it is not importable by
-default. The bidomain and monodomain machinery lives there -- it is example code, not part of
-the library, and it requires `dolfinx`, which `sknm` deliberately does not depend on -- yet it
-still needs testing, so this puts it on the path.
+`examples/` and `tools/` are directories of scripts rather than packages, so neither is
+importable by default. The bidomain and monodomain machinery lives in the first -- it is
+example code, not part of the library, and it requires `dolfinx`, which `sknm` deliberately
+does not depend on -- and the reference page generator lives in the second. Both still need
+testing, so this puts them on the path.
 """
 
 import sys
 from pathlib import Path
 
-EXAMPLES_DIR = Path(__file__).resolve().parents[1] / "examples"
+ROOT = Path(__file__).resolve().parents[1]
+EXAMPLES_DIR = ROOT / "examples"
+TOOLS_DIR = ROOT / "tools"
 
-if str(EXAMPLES_DIR) not in sys.path:
-    sys.path.insert(0, str(EXAMPLES_DIR))
+for directory in (EXAMPLES_DIR, TOOLS_DIR):
+    if str(directory) not in sys.path:
+        sys.path.insert(0, str(directory))
