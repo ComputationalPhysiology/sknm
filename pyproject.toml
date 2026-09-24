@@ -41,7 +41,9 @@ Repository = "https://github.com/ComputationalPhysiology/sknm"
 Issues = "https://github.com/ComputationalPhysiology/sknm/issues"
 
 [project.optional-dependencies]
-test = ["pytest", "pytest-cov"]
+# `griffe` is here as well as in `docs` because the reference generator's tests run with
+# the rest of the suite, and it is the only thing that exercises the generator.
+test = ["pytest", "pytest-cov", "griffe>=2"]
 examples = ["matplotlib"]
 # Only needed to regenerate the membrane models; the generated Python is committed.
 # The committed code was produced with gotranx main@70171e8.
