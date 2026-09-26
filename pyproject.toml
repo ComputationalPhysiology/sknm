@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sknm"
-version = "0.1.0"
+version = "0.1.1"
 description = "The Simplified Kirchhoff Network Model for cell-based cardiac and islet electrophysiology"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -127,7 +127,7 @@ tag = true
 sign_tags = false
 tag_name = "v{new_version}"
 tag_message = "Bump version: {current_version} → {new_version}"
-current_version = "0.1.0"
+current_version = "0.1.1"
 
 
 [[tool.bumpversion.files]]
