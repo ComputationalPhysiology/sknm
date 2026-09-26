@@ -143,9 +143,17 @@ by them. The model, its equations and its reference parameters are due to:
 > reaction–diffusion model of excitable tissue.* Scientific Reports 13, 16434 (2023).
 > <https://doi.org/10.1038/s41598-023-43444-9>
 
-The authors' own C++ implementation is distributed under CC-BY-4.0 and was used as the ground
+The authors' own C++ implementation (found <https://doi.org/10.5281/zenodo.8340201>) is distributed under CC-BY-4.0 and was used as the ground
 truth for every numerical choice made here. Please cite the paper above in any work that uses this
 package; see [`CITATION.cff`](CITATION.cff).
+
+The paper above is derrived from the paper
+
+> Jæger, K. H., & Tveito, A. (2023). *Efficient, cell-based simulations of cardiac
+> electrophysiology; the Kirchhoff Network Model (KNM). NPJ systems biology and applications, 9(1), 25.
+> <https://doi.org/10.1038/s41540-023-00288-3>
+
+with it's implementation in C++ found at <https://doi.org/10.5281/zenodo.7848664>.
 
 ## Licence
 
