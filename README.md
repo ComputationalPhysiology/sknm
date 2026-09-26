@@ -18,7 +18,7 @@ junctions, resolved per cell rather than homogenized into a continuum. See
 ## Installation
 
 ```bash
-python -m pip install -e ".[dev]"
+python -m pip install sknm
 ```
 
 Runtime dependencies are numpy, scipy and pint. `matplotlib` arrives with the `examples` extra,
