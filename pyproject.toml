@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sknm"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "The Simplified Kirchhoff Network Model for cell-based cardiac and islet electrophysiology"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -116,3 +116,8 @@ markers = [
 [tool.coverage.run]
 source = ["sknm"]
 branch = true
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
